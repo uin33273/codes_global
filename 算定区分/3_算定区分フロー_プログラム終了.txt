@@ -1,0 +1,4 @@
+
+FUNCTION プログラム終了 GLOBAL
+    EXIT Code: 0 ErrorMessage: $'''プログラムを終了します'''
+END FUNCTION
