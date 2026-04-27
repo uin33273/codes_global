@@ -4,6 +4,7 @@
 # 2. マスターファイルから店舗名のリストを取得し、お届け先部署名を変換して店番付き店舗名を作成する。
 # 3. 注文番号ごとに合計金額を計算し、商品名を加工して代表的な商品名を作成する。
 # 4. 最終的な集計結果をExcelファイルとして保存し、ウィンドウ枠の固定や色分け、列幅の調整などの書式設定を行う。
+#これまでは金額が最大のものを機械的に選んでいましたが、その結果が 「少額受注配送料」 になってしまう場合に限り、同じ注文番号内の他の商品名（配送料以外） を探して採用する処理を追加しています。
 import pandas as pd
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -20,7 +21,7 @@ def process_order_data():
     file_path = filedialog.askopenfilename(title="CSV選択", filetypes=[("CSV", "*.csv")])
     if not file_path: return
 
-    messagebox.showinfo("手順2", "マスターファイル（例い:【HL平出】...）を選択してください")
+    messagebox.showinfo("手順2", "マスターファイル(例：【HL平出】R8.03月...)を選択してください")
     master_path = filedialog.askopenfilename(title="マスター選択", filetypes=[("Excel", "*.xlsx *.xls")])
     if not master_path: return
 
@@ -37,9 +38,32 @@ def process_order_data():
         df['税込小計'] = pd.to_numeric(df['税込小計'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
         total_amounts = df.groupby('注文番号')['税込小計'].sum().reset_index(name='合計金額')
 
-        # --- 商品名の加工 ---
+        # --- 【修正】代表商品名の選定ロジック ---
+        # 1. 金額順にソート
+        df_sorted = df.sort_values(['注文番号', '税込小計'], ascending=[True, False])
+
+        def get_representative_name(group):
+            # 金額が一番高い商品を取得
+            top_item = group.iloc[0]['商品名']
+            
+            # もし一番高いのが「少額受注配送料」なら、それ以外の商品を探す
+            if top_item == "少額受注配送料" and len(group) > 1:
+                other_items = group[group['商品名'] != "少額受注配送料"]
+                if not other_items.empty:
+                    return other_items.iloc[0]['商品名']
+            
+            return top_item
+
+        # 注文番号ごとに代表名を決定
+        rep_names = df_sorted.groupby('注文番号').apply(get_representative_name).reset_index(name='商品名')
+
+        # 2. 代表行（商品名以外）のベースを作成
+        representative = df_sorted.drop_duplicates('注文番号').copy()
+        # 商品名列を、先ほど選定した代表名に差し替える
+        representative = representative.drop(columns=['商品名']).merge(rep_names, on='注文番号')
+
+        # --- 商品名の加工（「_他」の追加） ---
         order_counts = df.groupby('注文番号').size().reset_index(name='商品数')
-        representative = df.sort_values(['注文番号', '税込小計'], ascending=[True, False]).drop_duplicates('注文番号').copy()
         representative = pd.merge(representative, order_counts, on='注文番号')
         representative['商品名'] = representative.apply(
             lambda x: f"{x['商品名']}_他" if x['商品数'] > 1 else x['商品名'], axis=1
@@ -92,7 +116,7 @@ def process_order_data():
         final_result = result.reindex(columns=cols)
 
         # --- 保存・書式設定 ---
-        save_path = Path.home() / "Downloads" / "最終集計データ.xlsx"
+        save_path = Path.home() / "Downloads" / "カウネットコピペデータ.xlsx"
         has_unregistered = False
         
         with pd.ExcelWriter(save_path, engine='openpyxl') as writer:
@@ -121,7 +145,7 @@ def process_order_data():
                     for col_idx in range(1, ws.max_column + 1):
                         ws.cell(row=row_idx, column=col_idx).fill = tel_fill
                 
-                # 「未登録」セルの色付けとフラグ更新
+                # 「未登録」セルの色付け
                 master_cell = ws.cell(row=row_idx, column=master_col_idx)
                 if master_cell.value == "未登録":
                     master_cell.fill = alert_fill
@@ -130,7 +154,7 @@ def process_order_data():
                 ws.cell(row=row_idx, column=amount_col_idx).number_format = '#,##0'
                 prev_tel = current_tel
 
-            # --- 列幅の調整（エラー回避版） ---
+            # --- 列幅の調整 ---
             for i, col in enumerate(ws.columns, 1):
                 column_letter = get_column_letter(i)
                 if column_letter == 'C':
@@ -146,9 +170,9 @@ def process_order_data():
                     ws.column_dimensions[column_letter].width = max_length + 2
 
         if has_unregistered:
-            messagebox.showwarning("完了（警告あり）", f"保存が完了しましたが、未登録の店舗があります。\n黄色いセルを確認してください。\n保存先: {save_path}")
+            messagebox.showwarning("完了（警告あり）", f"保存が完了しましたが、未登録の店舗があります。")
         else:
-            messagebox.showinfo("完了", f"保存が完了しました！\n保存先: {save_path}")
+            messagebox.showinfo("完了", f"保存が完了しました！")
 
     except Exception as e:
         messagebox.showerror("エラー", f"エラーが発生しました:\n{e}")
