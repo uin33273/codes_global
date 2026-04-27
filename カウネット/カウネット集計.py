@@ -21,7 +21,7 @@ def process_order_data():
     file_path = filedialog.askopenfilename(title="CSV選択", filetypes=[("CSV", "*.csv")])
     if not file_path: return
 
-    messagebox.showinfo("手順2", "マスターファイル(例：【HL平出】R8.03月...)を選択してください")
+    messagebox.showinfo("手順2", "マスターファイルを選択してください")
     master_path = filedialog.askopenfilename(title="マスター選択", filetypes=[("Excel", "*.xlsx *.xls")])
     if not master_path: return
 
@@ -34,19 +34,18 @@ def process_order_data():
         df = pd.read_csv(file_path, encoding='cp932')
         df.columns = df.columns.str.strip()
 
-        # --- 合計金額の計算 ---
+        # --- 【修正】合計金額の計算（伝票番号単位） ---
         df['税込小計'] = pd.to_numeric(df['税込小計'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-        total_amounts = df.groupby('注文番号')['税込小計'].sum().reset_index(name='合計金額')
+        total_amounts = df.groupby('伝票番号')['税込小計'].sum().reset_index(name='合計金額')
 
-        # --- 【修正】代表商品名の選定ロジック ---
-        # 1. 金額順にソート
-        df_sorted = df.sort_values(['注文番号', '税込小計'], ascending=[True, False])
+        # --- 【修正】代表商品名の選定ロジック（伝票番号単位） ---
+        df_sorted = df.sort_values(['伝票番号', '税込小計'], ascending=[True, False])
 
         def get_representative_name(group):
             # 金額が一番高い商品を取得
             top_item = group.iloc[0]['商品名']
             
-            # もし一番高いのが「少額受注配送料」なら、それ以外の商品を探す
+            # もし一番高いのが「少額受注配送料」なら、同じ伝票番号内の他の商品名を探す
             if top_item == "少額受注配送料" and len(group) > 1:
                 other_items = group[group['商品名'] != "少額受注配送料"]
                 if not other_items.empty:
@@ -54,22 +53,22 @@ def process_order_data():
             
             return top_item
 
-        # 注文番号ごとに代表名を決定
-        rep_names = df_sorted.groupby('注文番号').apply(get_representative_name).reset_index(name='商品名')
+        # 伝票番号ごとに代表名を決定
+        rep_names = df_sorted.groupby('伝票番号').apply(get_representative_name).reset_index(name='商品名')
 
-        # 2. 代表行（商品名以外）のベースを作成
-        representative = df_sorted.drop_duplicates('注文番号').copy()
-        # 商品名列を、先ほど選定した代表名に差し替える
-        representative = representative.drop(columns=['商品名']).merge(rep_names, on='注文番号')
+        # 代表行（商品名以外）のベースを作成（伝票番号で重複排除）
+        representative = df_sorted.drop_duplicates('伝票番号').copy()
+        # 商品名列を差し替える
+        representative = representative.drop(columns=['商品名']).merge(rep_names, on='伝票番号')
 
-        # --- 商品名の加工（「_他」の追加） ---
-        order_counts = df.groupby('注文番号').size().reset_index(name='商品数')
-        representative = pd.merge(representative, order_counts, on='注文番号')
+        # --- 【修正】商品名の加工（「_他」の追加：伝票番号単位） ---
+        order_counts = df.groupby('伝票番号').size().reset_index(name='商品数')
+        representative = pd.merge(representative, order_counts, on='伝票番号')
         representative['商品名'] = representative.apply(
             lambda x: f"{x['商品名']}_他" if x['商品数'] > 1 else x['商品名'], axis=1
         )
 
-        # --- 変換店舗名の作成（店と空白を無視） ---
+        # --- 変換店舗名の作成 ---
         def create_conv_name(target):
             if not isinstance(target, str): return ""
             name = target.replace("店", "").replace(" ", "").replace("　", "")
@@ -94,7 +93,7 @@ def process_order_data():
         representative['店番付き店舗名'] = representative['変換店舗名'].apply(find_full_name)
 
         # --- データの結合 ---
-        result = pd.merge(representative, total_amounts, on='注文番号')
+        result = pd.merge(representative, total_amounts, on='伝票番号')
 
         # --- 取引先列の作成 ---
         result['取引先'] = result.apply(
@@ -170,9 +169,9 @@ def process_order_data():
                     ws.column_dimensions[column_letter].width = max_length + 2
 
         if has_unregistered:
-            messagebox.showwarning("完了（警告あり）", f"保存が完了しましたが、未登録の店舗があります。")
+            messagebox.showwarning("完了（警告あり）", "保存が完了しましたが、未登録の店舗があります。")
         else:
-            messagebox.showinfo("完了", f"保存が完了しました！")
+            messagebox.showinfo("完了", "保存が完了しました！")
 
     except Exception as e:
         messagebox.showerror("エラー", f"エラーが発生しました:\n{e}")
