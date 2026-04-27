@@ -1,152 +1,157 @@
+#このアプリは、前処理済みのCSVファイルとマスターファイル（Excel）を選択して、注文データを集計・加工し、最終的にExcelファイルとして保存するものです。
+# 主な機能は以下の通りです：
+# 1. 複数のCSVファイルを選択して、特定の末尾番号に基づいて口座番号をマッピングし、最終行と「キャンセル」を含む行を削除してから、すべてのデータを結合する。
+# 2. マスターファイルから店舗名のリストを取得し、お届け先部署名を変換して店番付き店舗名を作成する。
+# 3. 注文番号ごとに合計金額を計算し、商品名を加工して代表的な商品名を作成する。
+# 4. 最終的な集計結果をExcelファイルとして保存し、ウィンドウ枠の固定や色分け、列幅の調整などの書式設定を行う。
 import pandas as pd
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
-import os
-from openpyxl import load_workbook
+from tkinter import filedialog, messagebox
+from pathlib import Path
+import re
+from openpyxl.styles import Alignment, PatternFill
+from openpyxl.utils import get_column_letter
 
-def convert_store_name(dept_name):
-    if pd.isna(dept_name): return ""
-    name = str(dept_name)
-    for target, rep in [("グローバル", ""), ("キッズ", "K"), ("メソッド", "M"), ("パーク", "P"), ("サカフル", "SF"), ("店", "")]:
-        name = name.replace(target, rep)
-    return name.strip()
-
-class ManualSelectionWindow:
-    def __init__(self, target_stores, master_list):
-        self.root = tk.Toplevel()
-        self.root.title("店舗マスタ一括引き当て")
-        self.root.geometry("600x550")
-        self.root.attributes('-topmost', True)
-        self.master_list = ["一致なし"] + master_list
-        self.results = {}
-        self.target_stores = target_stores
-        self.current_idx = 0
-        main_frame = tk.Frame(self.root, padx=20, pady=20)
-        main_frame.pack(fill=tk.BOTH, expand=True)
-        self.label_info = tk.Label(main_frame, text="", font=("MS Gothic", 12, "bold"), fg="blue")
-        self.label_info.pack(pady=5)
-        self.search_var = tk.StringVar()
-        self.search_var.trace("w", self.update_list)
-        self.entry_search = tk.Entry(main_frame, textvariable=self.search_var, width=50)
-        self.entry_search.pack(pady=5)
-        self.entry_search.bind("<Return>", self.confirm_selection)
-        self.entry_search.bind("<Down>", self.focus_list)
-        self.listbox = tk.Listbox(main_frame, width=60, height=15, font=("MS Gothic", 10))
-        self.listbox.pack(pady=5)
-        self.listbox.bind("<Double-Button-1>", self.confirm_selection)
-        self.listbox.bind("<Return>", self.confirm_selection)
-        self.btn_ok = tk.Button(main_frame, text="確定して次へ (Enter)", command=self.confirm_selection, bg="lightblue", width=20)
-        self.btn_ok.pack(pady=10)
-        self.load_store()
-        self.root.grab_set()
-        self.root.wait_window()
-
-    def focus_list(self, event):
-        self.listbox.focus_set()
-        if self.listbox.size() > 0: self.listbox.selection_set(0)
-
-    def load_store(self):
-        if self.current_idx < len(self.target_stores):
-            store = self.target_stores[self.current_idx]
-            self.label_info.config(text=f"【確認中】 {self.current_idx+1}/{len(self.target_stores)} ： {store}")
-            self.search_var.set(store)
-            self.update_list()
-            self.entry_search.focus_set()
-            self.entry_search.selection_range(0, tk.END)
-        else: self.root.destroy()
-
-    def update_list(self, *args):
-        search_term = self.search_var.get()
-        self.listbox.delete(0, tk.END)
-        filtered_list = ["一致なし"] + [m for m in self.master_list[1:] if search_term in m]
-        for item in filtered_list: self.listbox.insert(tk.END, item)
-        if self.listbox.size() > 0: self.listbox.selection_set(0)
-
-    def confirm_selection(self, event=None):
-        selection = self.listbox.curselection()
-        if selection:
-            self.results[self.target_stores[self.current_idx]] = self.listbox.get(selection)
-            self.current_idx += 1
-            self.load_store()
-
-def aggregate_orders_final(df):
-    """注文番号に基づいて重複を排除し、金額合計と商品名加工を行う"""
-    # 注文番号を文字列に統一
-    df['注文番号'] = df['注文番号'].astype(str)
-    
-    # 1. 各注文番号の合計金額を計算
-    amt_map = df.groupby('注文番号')['税込金額'].sum()
-    
-    # 2. 加工商品名（最大金額 + 「他」）のリスト作成
-    def get_complex_name(group):
-        max_row = group.loc[group['税込金額'].idxmax()]
-        base_name = str(max_row['商品名'])
-        return f"{base_name} 他" if len(group) > 1 else base_name
-
-    name_map = df.groupby('注文番号').apply(get_complex_name)
-
-    # 3. 重複を削除して1行目だけを残す
-    df_unique = df.drop_duplicates(subset='注文番号', keep='first').copy()
-
-    # 4. 集計した値を反映
-    df_unique['税込金額'] = df_unique['注文番号'].map(amt_map)
-    df_unique['商品名'] = df_unique['注文番号'].map(name_map)
-    
-    return df_unique
-
-def main():
+def process_order_data():
     root = tk.Tk()
     root.withdraw()
-    csv_path = filedialog.askopenfilename(title="CSV選択", filetypes=[("CSV", "*.csv")])
-    if not csv_path: return
-    messagebox.showinfo("案内", "店番リスト(Excel)を選択してください。")
-    master_path = filedialog.askopenfilename(title="マスタ選択", filetypes=[("Excel", "*.xlsx")])
+    
+    messagebox.showinfo("手順1", "カウネット中間データファイルを選択してください")
+    file_path = filedialog.askopenfilename(title="CSV選択", filetypes=[("CSV", "*.csv")])
+    if not file_path: return
+
+    messagebox.showinfo("手順2", "マスターファイル（例い:【HL平出】...）を選択してください")
+    master_path = filedialog.askopenfilename(title="マスター選択", filetypes=[("Excel", "*.xlsx *.xls")])
     if not master_path: return
 
     try:
-        master_df = pd.read_excel(master_path, sheet_name="リスト", usecols="C")
-        master_choices = master_df.iloc[:, 0].dropna().astype(str).tolist()
+        # --- マスターの読み込み ---
+        master_df = pd.read_excel(master_path, sheet_name='リスト', header=None)
+        master_list = master_df.iloc[:, 2].dropna().astype(str).str.strip().tolist()
 
-        df = pd.read_csv(csv_path, skiprows=4, encoding='shift_jis')
-        # A列のフッター削除
-        df = df[~df[df.columns[0]].astype(str).str.contains("※税抜小計や税額小計", na=False)]
+        # --- CSVの読み込み ---
+        df = pd.read_csv(file_path, encoding='cp932')
+        df.columns = df.columns.str.strip()
 
-        # --- 【重要】ここが集約の核心部 ---
-        if all(col in df.columns for col in ['注文番号', '税込金額', '商品名']):
-            df = aggregate_orders_final(df)
+        # --- 合計金額の計算 ---
+        df['税込小計'] = pd.to_numeric(df['税込小計'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+        total_amounts = df.groupby('注文番号')['税込小計'].sum().reset_index(name='合計金額')
 
-        if "お届け先部署名" in df.columns:
-            df.insert(df.columns.get_loc("お届け先部署名") + 1, "店舗名", df["お届け先部署名"].apply(convert_store_name))
-            df.insert(df.columns.get_loc("店舗名") + 1, "店番付き店舗名", "")
-            
-            unmatched_unique = []
-            for i, row in df.iterrows():
-                s_name = str(row["店舗名"]).strip()
-                if not s_name: continue
-                match = [m for m in master_choices if s_name in m]
-                if match: df.at[i, "店番付き店舗名"] = match[0]
-                else: unmatched_unique.append(s_name)
+        # --- 商品名の加工 ---
+        order_counts = df.groupby('注文番号').size().reset_index(name='商品数')
+        representative = df.sort_values(['注文番号', '税込小計'], ascending=[True, False]).drop_duplicates('注文番号').copy()
+        representative = pd.merge(representative, order_counts, on='注文番号')
+        representative['商品名'] = representative.apply(
+            lambda x: f"{x['商品名']}_他" if x['商品数'] > 1 else x['商品名'], axis=1
+        )
 
-            if unmatched_unique:
-                selector = ManualSelectionWindow(sorted(list(set(unmatched_unique))), master_choices)
-                for s, m in selector.results.items():
-                    df.loc[df["店舗名"] == s, "店番付き店舗名"] = m
+        # --- 変換店舗名の作成（店と空白を無視） ---
+        def create_conv_name(target):
+            if not isinstance(target, str): return ""
+            name = target.replace("店", "").replace(" ", "").replace("　", "")
+            prefix = ""
+            if "キッズ" in name: prefix += "K"
+            if "メソッド" in name: prefix += "M"
+            if "パーク" in name: prefix = "P"
+            if "サカフル" in name: prefix = "SF"
+            parts = re.split(r'キッズ|メソッド|パーク|サカフル', name)
+            sub_name = parts[-1] if len(parts) > 1 else name
+            return f"{prefix}{sub_name}"
 
-        excel_path = os.path.splitext(csv_path)[0] + ".xlsx"
-        df.to_excel(excel_path, index=False)
+        representative['変換店舗名'] = representative['お届け先部署名'].apply(create_conv_name)
 
-        delete_list = ["伝票タイプ", "お支払い方法", "商品番号", "商品カテゴリ(大)", "商品カテゴリ(中)", "商品カテゴリ(小)", "行メモ", "税込単価", "税抜単価", "消費税額", "税抜小計", "税額小計", "税率", "軽減税率対象商品", "GPNDB掲載", "グリーン購入法", "ご登録電話番号", "担当販売店名", "ユーザーID", "ユーザー名", "備考", "エコマーク", "お届け先社名"]
-        wb = load_workbook(excel_path)
-        ws = wb.active
-        for col_idx in range(ws.max_column, 0, -1):
-            if str(ws.cell(row=1, column=col_idx).value).strip() in delete_list:
-                ws.delete_cols(col_idx)
+        # --- マスターと照合 ---
+        def find_full_name(conv_name):
+            if not conv_name: return ""
+            for m in master_list:
+                if conv_name in m: return m
+            return "未登録"
+
+        representative['店番付き店舗名'] = representative['変換店舗名'].apply(find_full_name)
+
+        # --- データの結合 ---
+        result = pd.merge(representative, total_amounts, on='注文番号')
+
+        # --- 取引先列の作成 ---
+        result['取引先'] = result.apply(
+            lambda x: f"㈲コパン（㈱カウネット）{x['口座番号']}", axis=1
+        )
+
+        # --- 3重ソート（電話番号 > 出荷日 > 注文番号） ---
+        result = result.sort_values(
+            by=['ご登録電話番号', '出荷日', '注文番号'], 
+            ascending=[True, True, True]
+        )
+
+        # --- 列の並び替え ---
+        cols = [
+            "出荷日", "注文番号", "取引先", "商品名", "合計金額", 
+            "店番付き店舗名", "伝票番号", "ご登録電話番号", "お届け先部署名"
+        ]
+        cols = [c for c in cols if c in result.columns]
+        final_result = result.reindex(columns=cols)
+
+        # --- 保存・書式設定 ---
+        save_path = Path.home() / "Downloads" / "最終集計データ.xlsx"
+        has_unregistered = False
         
-        wb.save(excel_path)
-        messagebox.showinfo("完了", "注文を1行に集約し、整形を完了しました。")
+        with pd.ExcelWriter(save_path, engine='openpyxl') as writer:
+            final_result.to_excel(writer, index=False, sheet_name='集計結果')
+            ws = writer.sheets['集計結果']
+            
+            ws.freeze_panes = 'B2'
+
+            # 色の設定
+            tel_fill = PatternFill(start_color="E1F5FE", end_color="E1F5FE", fill_type="solid")
+            alert_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+            
+            tel_col_idx = cols.index("ご登録電話番号") + 1
+            amount_col_idx = cols.index("合計金額") + 1
+            master_col_idx = cols.index("店番付き店舗名") + 1
+            
+            prev_tel = None
+            is_colored = False
+
+            for row_idx in range(2, ws.max_row + 1):
+                current_tel = ws.cell(row=row_idx, column=tel_col_idx).value
+                if current_tel != prev_tel:
+                    is_colored = not is_colored
+                
+                if is_colored:
+                    for col_idx in range(1, ws.max_column + 1):
+                        ws.cell(row=row_idx, column=col_idx).fill = tel_fill
+                
+                # 「未登録」セルの色付けとフラグ更新
+                master_cell = ws.cell(row=row_idx, column=master_col_idx)
+                if master_cell.value == "未登録":
+                    master_cell.fill = alert_fill
+                    has_unregistered = True
+
+                ws.cell(row=row_idx, column=amount_col_idx).number_format = '#,##0'
+                prev_tel = current_tel
+
+            # --- 列幅の調整（エラー回避版） ---
+            for i, col in enumerate(ws.columns, 1):
+                column_letter = get_column_letter(i)
+                if column_letter == 'C':
+                    ws.column_dimensions[column_letter].width = 30
+                else:
+                    max_length = 0
+                    for cell in col:
+                        try:
+                            if cell.value:
+                                val_len = len(str(cell.value).encode('shift_jis'))
+                                if val_len > max_length: max_length = val_len
+                        except: pass
+                    ws.column_dimensions[column_letter].width = max_length + 2
+
+        if has_unregistered:
+            messagebox.showwarning("完了（警告あり）", f"保存が完了しましたが、未登録の店舗があります。\n黄色いセルを確認してください。\n保存先: {save_path}")
+        else:
+            messagebox.showinfo("完了", f"保存が完了しました！\n保存先: {save_path}")
 
     except Exception as e:
-        messagebox.showerror("エラー", f"失敗しました:\n{e}")
+        messagebox.showerror("エラー", f"エラーが発生しました:\n{e}")
 
 if __name__ == "__main__":
-    main()
+    process_order_data()
