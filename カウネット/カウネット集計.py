@@ -13,6 +13,7 @@ import re
 from openpyxl.styles import Alignment, PatternFill
 from openpyxl.utils import get_column_letter
 
+# --- 1. 実際の処理を行う関数 ---
 def process_order_data():
     root = tk.Tk()
     root.withdraw()
@@ -34,54 +35,38 @@ def process_order_data():
         df = pd.read_csv(file_path, encoding='cp932')
         df.columns = df.columns.str.strip()
 
-        # --- 【修正】合計金額の計算（伝票番号単位） ---
+        # --- 合計金額の計算 ---
         df['税込小計'] = pd.to_numeric(df['税込小計'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
         total_amounts = df.groupby('伝票番号')['税込小計'].sum().reset_index(name='合計金額')
 
-        # --- 【修正】代表商品名の選定ロジック（伝票番号単位） ---
+        # --- 代表商品名の選定ロジック ---
         df_sorted = df.sort_values(['伝票番号', '税込小計'], ascending=[True, False])
 
         def get_representative_name(group):
-            # 金額が一番高い商品を取得
             top_item = group.iloc[0]['商品名']
-            
-            # もし一番高いのが「少額受注配送料」なら、同じ伝票番号内の他の商品名を探す
             if top_item == "少額受注配送料" and len(group) > 1:
                 other_items = group[group['商品名'] != "少額受注配送料"]
                 if not other_items.empty:
                     return other_items.iloc[0]['商品名']
-            
             return top_item
 
-        # 伝票番号ごとに代表名を決定
         rep_names = df_sorted.groupby('伝票番号').apply(get_representative_name).reset_index(name='商品名')
-
-        # 代表行（商品名以外）のベースを作成（伝票番号で重複排除）
         representative = df_sorted.drop_duplicates('伝票番号').copy()
-        # 商品名列を差し替える
         representative = representative.drop(columns=['商品名']).merge(rep_names, on='伝票番号')
 
-        # --- 【修正】商品名の加工（「_他」の追加：伝票番号単位） ---
-        
-        # --- 【修正】商品名の加工（スペース数による切り出しと「_他」の追加） ---
+        # --- 商品名の加工 ---
         order_counts = df.groupby('伝票番号').size().reset_index(name='商品数')
         representative = pd.merge(representative, order_counts, on='伝票番号')
 
         def format_product_name(row):
             name = str(row['商品名'])
-            # 全角・半角スペース両方で分割
             parts = re.split(r'[ 　]', name)
-            
             if len(parts) >= 3:
-                # スペース2個以上：2個目の手前まで
                 base_name = f"{parts[0]} {parts[1]}"
             elif len(parts) == 2:
-                # スペース1個：1個目の手前まで
                 base_name = parts[0]
             else:
-                # スペースなし
                 base_name = name
-            
             return f"{base_name}_他" if row['商品数'] > 1 else base_name
 
         representative['商品名'] = representative.apply(format_product_name, axis=1)
@@ -109,26 +94,14 @@ def process_order_data():
             return "未登録"
 
         representative['店番付き店舗名'] = representative['変換店舗名'].apply(find_full_name)
-
-        # --- データの結合 ---
         result = pd.merge(representative, total_amounts, on='伝票番号')
+        result['取引先'] = result.apply(lambda x: f"㈲コパン（㈱カウネット）{x['口座番号']}", axis=1)
 
-        # --- 取引先列の作成 ---
-        result['取引先'] = result.apply(
-            lambda x: f"㈲コパン（㈱カウネット）{x['口座番号']}", axis=1
-        )
-
-        # --- 3重ソート（電話番号 > 出荷日 > 伝票番号） ---
-        result = result.sort_values(
-            by=['ご登録電話番号', '出荷日', '伝票番号'], 
-            ascending=[True, True, True]
-        )
+        # --- 3重ソート ---
+        result = result.sort_values(by=['ご登録電話番号', '出荷日', '伝票番号'], ascending=[True, True, True])
 
         # --- 列の並び替え ---
-        cols = [
-            "出荷日", "注文番号", "取引先", "商品名", "合計金額", 
-            "店番付き店舗名", "伝票番号", "ご登録電話番号", "お届け先部署名"
-        ]
+        cols = ["出荷日", "注文番号", "取引先", "商品名", "合計金額", "店番付き店舗名", "伝票番号", "ご登録電話番号", "お届け先部署名"]
         cols = [c for c in cols if c in result.columns]
         final_result = result.reindex(columns=cols)
 
@@ -139,10 +112,7 @@ def process_order_data():
         with pd.ExcelWriter(save_path, engine='openpyxl') as writer:
             final_result.to_excel(writer, index=False, sheet_name='集計結果')
             ws = writer.sheets['集計結果']
-            
             ws.freeze_panes = 'B2'
-
-            # 色の設定
             tel_fill = PatternFill(start_color="E1F5FE", end_color="E1F5FE", fill_type="solid")
             alert_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
             
@@ -157,21 +127,17 @@ def process_order_data():
                 current_tel = ws.cell(row=row_idx, column=tel_col_idx).value
                 if current_tel != prev_tel:
                     is_colored = not is_colored
-                
                 if is_colored:
                     for col_idx in range(1, ws.max_column + 1):
                         ws.cell(row=row_idx, column=col_idx).fill = tel_fill
                 
-                # 「未登録」セルの色付け
                 master_cell = ws.cell(row=row_idx, column=master_col_idx)
                 if master_cell.value == "未登録":
                     master_cell.fill = alert_fill
                     has_unregistered = True
-
                 ws.cell(row=row_idx, column=amount_col_idx).number_format = '#,##0'
                 prev_tel = current_tel
 
-            # --- 列幅の調整 ---
             for i, col in enumerate(ws.columns, 1):
                 column_letter = get_column_letter(i)
                 if column_letter == 'C':
@@ -194,5 +160,10 @@ def process_order_data():
     except Exception as e:
         messagebox.showerror("エラー", f"エラーが発生しました:\n{e}")
 
-if __name__ == "__main__":
+# --- 2. 外部から呼ばれるためのmain関数 ---
+def main():
     process_order_data()
+
+# --- 3. 単体実行用 ---
+if __name__ == "__main__":
+    main()

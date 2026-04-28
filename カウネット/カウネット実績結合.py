@@ -5,9 +5,15 @@ from tkinter import font, filedialog, messagebox
 from pathlib import Path
 import webbrowser
 import json  # 設定保存用に追加
+import os   # 👈 追加
+import sys  # 👈 追加
 
-# 設定ファイルのパス（スクリプトと同じ場所に保存）
-CONFIG_FILE = Path(__file__).parent / "config.json"
+def resource_path(relative_path):
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.dirname(__file__), relative_path)
+
+CONFIG_FILE = Path(resource_path("config.json"))
 
 def load_config(default_map):
     """設定を読み込む。ファイルがなければデフォルトを返す"""
@@ -173,5 +179,7 @@ def pre_process_csv():
     finally:
         root.destroy()
 
-if __name__ == "__main__":
+def main():
     pre_process_csv()
+if __name__ == "__main__":
+    main()
