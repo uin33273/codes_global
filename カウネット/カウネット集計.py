@@ -62,11 +62,29 @@ def process_order_data():
         representative = representative.drop(columns=['商品名']).merge(rep_names, on='伝票番号')
 
         # --- 【修正】商品名の加工（「_他」の追加：伝票番号単位） ---
+        
+        # --- 【修正】商品名の加工（スペース数による切り出しと「_他」の追加） ---
         order_counts = df.groupby('伝票番号').size().reset_index(name='商品数')
         representative = pd.merge(representative, order_counts, on='伝票番号')
-        representative['商品名'] = representative.apply(
-            lambda x: f"{x['商品名']}_他" if x['商品数'] > 1 else x['商品名'], axis=1
-        )
+
+        def format_product_name(row):
+            name = str(row['商品名'])
+            # 全角・半角スペース両方で分割
+            parts = re.split(r'[ 　]', name)
+            
+            if len(parts) >= 3:
+                # スペース2個以上：2個目の手前まで
+                base_name = f"{parts[0]} {parts[1]}"
+            elif len(parts) == 2:
+                # スペース1個：1個目の手前まで
+                base_name = parts[0]
+            else:
+                # スペースなし
+                base_name = name
+            
+            return f"{base_name}_他" if row['商品数'] > 1 else base_name
+
+        representative['商品名'] = representative.apply(format_product_name, axis=1)
 
         # --- 変換店舗名の作成 ---
         def create_conv_name(target):
@@ -100,9 +118,9 @@ def process_order_data():
             lambda x: f"㈲コパン（㈱カウネット）{x['口座番号']}", axis=1
         )
 
-        # --- 3重ソート（電話番号 > 出荷日 > 注文番号） ---
+        # --- 3重ソート（電話番号 > 出荷日 > 伝票番号） ---
         result = result.sort_values(
-            by=['ご登録電話番号', '出荷日', '注文番号'], 
+            by=['ご登録電話番号', '出荷日', '伝票番号'], 
             ascending=[True, True, True]
         )
 
