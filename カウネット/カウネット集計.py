@@ -74,6 +74,9 @@ def process_order_data():
         # --- 変換店舗名の作成 ---
         def create_conv_name(target):
             if not isinstance(target, str): return ""
+            # ✅ 平出事務所はそのまま返す
+            if str(target).strip() == "平出事務所":
+                return "平出事務所"
             name = target.replace("店", "").replace(" ", "").replace("　", "")
             prefix = ""
             if "キッズ" in name: prefix += "K"
@@ -82,18 +85,35 @@ def process_order_data():
             if "サカフル" in name: prefix = "SF"
             parts = re.split(r'キッズ|メソッド|パーク|サカフル', name)
             sub_name = parts[-1] if len(parts) > 1 else name
+            # ✅ 店名部分が空（prefixのみ）の場合は空欄扱いにする
+            if sub_name == "":
+                return ""
             return f"{prefix}{sub_name}"
 
         representative['変換店舗名'] = representative['お届け先部署名'].apply(create_conv_name)
 
         # --- マスターと照合 ---
-        def find_full_name(conv_name):
-            if not conv_name: return ""
+        def find_full_name(row):
+            # お届け先部署名が空欄の場合は「空欄」を返す
+            dept = row['お届け先部署名']
+            if not isinstance(dept, str) or dept.strip() == "":
+                return "空欄"
+            conv_name = row['変換店舗名']
+            # ✅ 店名部分なし（グローバルキッズメソッドのみ等）も空欄扱い
+            if not conv_name: return "空欄"
+            # マスターは「番号+prefix+店名」形式（例: 102KPせんげん台）
+            # conv_nameは「prefix+店名」形式（例: KPせんげん台）なので先頭の番号を除いて照合
             for m in master_list:
-                if conv_name in m: return m
+                m_without_num = re.sub(r'^\d+', '', m)
+                if m_without_num == conv_name:
+                    return m
+            # 部分一致でも探す（後方互換）
+            for m in master_list:
+                if conv_name in m:
+                    return m
             return "未登録"
 
-        representative['店番付き店舗名'] = representative['変換店舗名'].apply(find_full_name)
+        representative['店番付き店舗名'] = representative.apply(find_full_name, axis=1)
         result = pd.merge(representative, total_amounts, on='伝票番号')
         result['取引先'] = result.apply(lambda x: f"㈲コパン（㈱カウネット）{x['口座番号']}", axis=1)
 
@@ -135,6 +155,8 @@ def process_order_data():
                 if master_cell.value == "未登録":
                     master_cell.fill = alert_fill
                     has_unregistered = True
+                elif master_cell.value == "空欄":
+                    master_cell.fill = PatternFill(start_color="E1BEE7", end_color="B3E5FC", fill_type="solid")
                 ws.cell(row=row_idx, column=amount_col_idx).number_format = '#,##0'
                 prev_tel = current_tel
 
@@ -157,8 +179,15 @@ def process_order_data():
         else:
             messagebox.showinfo("完了", "保存が完了しました！")
 
+    except PermissionError:
+        messagebox.showwarning(
+            "ファイルが開いています",
+            "カウネットコピペデータ.xlsx が Excel で開いたままになっています。\n"
+            "Excelを閉じてから再実行してください。"
+        )
     except Exception as e:
-        messagebox.showerror("エラー", f"エラーが発生しました:\n{e}")
+        import traceback
+        messagebox.showerror("エラー", f"エラーが発生しました:\n{traceback.format_exc()}")
 
 # --- 2. 外部から呼ばれるためのmain関数 ---
 def main():

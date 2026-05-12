@@ -4,26 +4,30 @@ import tkinter as tk
 from tkinter import font, filedialog, messagebox
 from pathlib import Path
 import webbrowser
-import json  # 設定保存用に追加
-import os   # 👈 追加
-import sys  # 👈 追加
+import json
+import os
+import sys
 
 def resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.dirname(__file__), relative_path)
 
-CONFIG_FILE = Path(resource_path("config.json"))
+# ✅ Downloadsフォルダに保存（書き込み可能）
+CONFIG_FILE = Path.home() / "Desktop" / "カウネット_電話_口座番号.json"
 
 def load_config(default_map):
-    """設定を読み込む。ファイルがなければデフォルトを返す"""
+    """設定を読み込む。ファイルがなければデフォルト値で自動生成して返す"""
     if CONFIG_FILE.exists():
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception:
             return default_map
-    return default_map
+    else:
+        # ファイルが存在しない場合はデフォルト値で自動生成
+        save_config(default_map)
+        return default_map
 
 def save_config(account_map):
     """設定をファイルに保存する"""
@@ -125,7 +129,7 @@ def pre_process_csv():
         "8405": "6354102", "9873": "6361859"
     }
 
-    # 保存された設定があれば読み込む
+    # 保存された設定があれば読み込む（なければ自動生成）
     account_map = get_account_map_from_user(load_config(initial_default_map))
     
     if account_map is None:

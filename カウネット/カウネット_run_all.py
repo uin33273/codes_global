@@ -1,3 +1,4 @@
+# カウネットの実績結合と集計を一括で実行するためのGUIアプリ
 import tkinter as tk
 from tkinter import messagebox
 import カウネット実績結合
