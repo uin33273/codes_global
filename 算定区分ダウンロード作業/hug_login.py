@@ -46,6 +46,7 @@ URLS = [
 ]
 
 WORK_DIR = os.path.join(os.path.expanduser("~"), "Desktop", "算定区分ダウンロード作業")
+CHROME_PROFILE_DIR = os.path.join(WORK_DIR, "chrome_profile")
 
 LOGIN_BTN_IMG    = os.path.join(WORK_DIR, "login_btn.png")
 SEIKYU_IMG       = os.path.join(WORK_DIR, "seikyu_menu.png")
@@ -157,6 +158,7 @@ def is_shukei_grayed_out(loc):
     diff = max(abs(r-g), abs(g-b), abs(r-b))
     return diff < 20 and 130 < r < 220
 
+
 def find_shukei():
     import numpy as np
     import traceback
@@ -266,7 +268,7 @@ def _dbg(msg):
     except Exception as e:
         print(f"_dbg error: {e} | {msg}", flush=True)
 
-def do_one_shisetsu():
+def do_one_shisetsu(skip_hyoji=False):
     """現在選択されている施設の処理（表示変更→集計→CSV→キャンセル）。成功=True"""
     import traceback
     def click_hyoji():
@@ -278,11 +280,14 @@ def do_one_shisetsu():
 
     _dbg("do_one_shisetsu 開始")
     try:
-        if not click_hyoji():
-            _dbg("click_hyoji 失敗（HYOJI_IMG 未検出）")
-            return False
-        _dbg("click_hyoji 成功")
-        time.sleep(5)
+        if skip_hyoji:
+            _dbg("click_hyoji スキップ（Seleniumで表示変更済み）")
+        else:
+            if not click_hyoji():
+                _dbg("click_hyoji 失敗（HYOJI_IMG 未検出）")
+                return False
+            _dbg("click_hyoji 成功")
+            time.sleep(5)
 
         pyautogui.hotkey('ctrl', 'end')
         time.sleep(1)
@@ -398,124 +403,235 @@ def process_site(url, label, year, month):
             except Exception:
                 pass
 
-        subprocess.Popen([chrome_path, "--start-maximized", url])
-        time.sleep(5)
-
-        minimize_gui()
-        time.sleep(0.3)
-        focus_chrome()
-        time.sleep(0.5)
-
-        # Chromeウィンドウを確実に最大化
-        chrome_hwnd = _find_chrome_hwnd()
-        if chrome_hwnd:
-            ctypes.windll.user32.ShowWindow(chrome_hwnd, 3)  # 3 = SW_MAXIMIZE
-            time.sleep(0.5)
-            ctypes.windll.user32.SetForegroundWindow(chrome_hwnd)
-            time.sleep(0.3)
-
-        if click_image(LOGIN_BTN_IMG, timeout=6):
-            time.sleep(4)
-            minimize_gui()
-            focus_chrome()
-            time.sleep(0.3)
-            time.sleep(0.5)
-
-        focus_chrome()
-        time.sleep(0.3)
-        time.sleep(0.5)
-
-        seikyu_pos = find_image(SEIKYU_IMG, timeout=10)
-        if not seikyu_pos:
+        import traceback as _tb
+        import numpy as _np
+        try:
+            from selenium import webdriver
+            from selenium.webdriver.chrome.options import Options as COptions
+            from selenium.webdriver.common.by import By
+            from selenium.webdriver.support.ui import Select, WebDriverWait
+            from selenium.webdriver.support import expected_conditions as EC
+        except ImportError:
+            _dbg("selenium未インストール: pip install selenium")
             return -1
-        pyautogui.moveTo(seikyu_pos.x, seikyu_pos.y, duration=0.3)
-        time.sleep(1.5)
 
-        if not click_image(KOKUHOREN_IMG, timeout=10):
-            return -1
+        # 既存Chromeを終了（ロック解放のため）
+        try:
+            subprocess.run(['taskkill', '/F', '/IM', 'chrome.exe'],
+                           capture_output=True, timeout=10)
+            _dbg("既存Chrome終了")
+        except Exception:
+            pass
         time.sleep(3)
 
-        s_pos = find_image(SHISETSU_IMG, timeout=10)
-        if not s_pos:
+        # デフォルトプロファイルのロックファイルを削除
+        _chrome_data = os.path.join(os.environ.get('LOCALAPPDATA', ''),
+                                    'Google', 'Chrome', 'User Data')
+        for _lock in ['lockfile', 'SingletonLock', 'SingletonCookie', 'SingletonSocket']:
+            _lpath = os.path.join(_chrome_data, _lock)
+            try:
+                if os.path.exists(_lpath):
+                    os.remove(_lpath)
+                    _dbg(f"ロックファイル削除: {_lock}")
+            except Exception:
+                pass
+
+        # ChromeDriverがデフォルトプロファイルでChromeを直接起動
+        # （保存済みCookieが有効なのでログイン不要）
+        opts = COptions()
+        opts.add_argument(f'--user-data-dir={_chrome_data}')
+        opts.add_argument('--profile-directory=Default')
+        opts.add_argument('--start-maximized')
+        opts.add_argument('--no-first-run')
+        opts.add_argument('--no-default-browser-check')
+        opts.add_argument('--disable-session-crashed-bubble')
+        opts.add_argument('--hide-crash-restore-bubble')
+        opts.add_experimental_option('excludeSwitches', ['enable-automation'])
+        opts.add_experimental_option('useAutomationExtension', False)
+
+        try:
+            driver = webdriver.Chrome(options=opts)
+            _dbg("ChromeDriver起動成功（デフォルトプロファイル）")
+        except Exception:
+            _dbg(f"ChromeDriver起動失敗:\n{_tb.format_exc()}")
             return -1
 
-        pyautogui.click(s_pos.x, s_pos.y)
-        time.sleep(0.4)
-        pyautogui.press('tab')
-        time.sleep(0.3)
-        pyautogui.press('tab')
-        time.sleep(0.4)
-        pyautogui.press('home')
-        time.sleep(0.3)
-        for _ in range(int(year) - 2015):
-            pyautogui.press('down')
-            time.sleep(0.1)
-        time.sleep(0.3)
+        try:
+            # Chromeウィンドウを最大化
+            minimize_gui()
+            focus_chrome()
+            time.sleep(0.5)
+            chrome_hwnd = _find_chrome_hwnd()
+            if chrome_hwnd:
+                ctypes.windll.user32.ShowWindow(chrome_hwnd, 3)
+                time.sleep(0.5)
+                ctypes.windll.user32.SetForegroundWindow(chrome_hwnd)
+                time.sleep(0.3)
 
-        pyautogui.press('tab')
-        time.sleep(0.4)
-        pyautogui.press('home')
-        time.sleep(0.3)
-        for _ in range(int(month) - 1):
-            pyautogui.press('down')
-            time.sleep(0.1)
-        time.sleep(0.3)
+            payment_url = url.rstrip('/') + '/payment/payment.php?date_change_flg=1'
 
-        if not focus_shisetsu_dd():
-            return -1
+            # ホームURLへ遷移してログイン状態を確認
+            _dbg(f"ホームURLへ遷移: {url}")
+            driver.get(url)
+            time.sleep(4)
+            _dbg(f"ホーム遷移後URL: {driver.current_url}")
 
-        total = 0
+            # パスワードフィールドの有無でログインが必要か判定
+            _need_login = False
+            try:
+                driver.find_element(By.XPATH, "//input[@type='password']")
+                _need_login = True
+                _dbg("ログインフォーム検出")
+            except Exception:
+                _dbg("既にログイン済み（Cookieが有効）")
 
-        if test_mode:
-            # テストモード：最初の施設と最後の施設だけ処理
-            # 最後の施設（end）
-            pyautogui.press('end')
-            time.sleep(0.3)
-            if do_one_shisetsu():
-                total += 1
+            if _need_login:
+                _dbg("ログインフォーム検出 → Chromeの自動入力を待ってSubmit")
+                # Chromeの自動入力が完了するまで待つ（最大5秒）
+                time.sleep(3)
+                _passwd_filled = False
+                for _ in range(10):
+                    try:
+                        _pw = driver.find_element(By.XPATH, "//input[@type='password']")
+                        if driver.execute_script("return arguments[0].value.length", _pw) > 0:
+                            _passwd_filled = True
+                            _dbg("パスワード自動入力確認")
+                            break
+                    except Exception:
+                        pass
+                    time.sleep(0.5)
 
-            # 最初の施設（home）
-            if not focus_shisetsu_dd():
-                return total
-            pyautogui.press('home')
-            time.sleep(0.3)
-            if do_one_shisetsu():
-                total += 1
+                if not _passwd_filled:
+                    _dbg("自動入力なし → Chromeのパスワード保存を確認してください")
+                    import tkinter.messagebox as _mb
+                    restore_gui()
+                    _mb.showwarning(
+                        "自動入力できません",
+                        f"{label} のログイン情報がChromeに保存されていません。\n\n"
+                        "一度手動でChromeを開いてログインし、\n"
+                        "「パスワードを保存する」を選択してください。"
+                    )
+                    minimize_gui()
+                    return -1
 
-        else:
-            # 通常モード：末尾から全施設ループ
-            pyautogui.press('end')
-            time.sleep(0.3)
+                # Submitボタンをクリック
+                try:
+                    _submit = driver.find_element(
+                        By.XPATH,
+                        "//input[@type='submit'] | //button[@type='submit']"
+                        " | //button[contains(text(),'ログイン')]"
+                        " | //input[contains(@value,'ログイン')]"
+                    )
+                    driver.execute_script("arguments[0].click();", _submit)
+                    _dbg("ログインSubmitクリック")
+                    time.sleep(5)
+                    _dbg(f"ログイン後URL: {driver.current_url}")
+                except Exception:
+                    _dbg(f"Submitクリック失敗:\n{_tb.format_exc()}")
+                    return -1
 
-            while True:
-                if do_one_shisetsu():
-                    total += 1
+            # 国保連ページへ遷移
+            _dbg(f"国保連ページへ遷移: {payment_url}")
+            driver.get(payment_url)
+            time.sleep(5)
+            _dbg(f"Selenium現在URL: {driver.current_url}")
 
-                # 次の施設へ
+            wait = WebDriverWait(driver, 15)
+            wait.until(EC.presence_of_element_located((By.TAG_NAME, "select")))
+
+            # 全selectをループせず、候補名リストで直接検索（manage_facility*等が50個あるため）
+            def _find_css(candidates):
+                for css in candidates:
+                    try:
+                        el = driver.find_element(By.CSS_SELECTOR, css)
+                        _dbg(f"  select検出: {css}")
+                        return el, css
+                    except Exception:
+                        pass
+                return None, None
+
+            shisetsu_sel, css_s = _find_css([
+                "select[name='facility']", "select[id='facility']",
+                "select[name='shisetsu']", "select[name='shisetu']",
+                "select[name='jigyosho']",
+            ])
+            year_sel, css_y = _find_css([
+                "select[name='s_year']",  "select[id='s_year']",
+                "select[name='year']",    "select[id='year']",
+                "select[name='nen']",
+            ])
+            month_sel, css_m = _find_css([
+                "select[name='s_month']", "select[id='s_month']",
+                "select[name='month']",   "select[id='month']",
+                "select[name='tsuki']",
+            ])
+
+            _dbg(f"施設css={css_s}  年css={css_y}  月css={css_m}")
+
+            if shisetsu_sel is None:
+                _dbg("施設selectが見つからない → 終了")
+                return -1
+
+            all_vals = [o.get_attribute('value') for o in Select(shisetsu_sel).options
+                        if o.get_attribute('value').strip()]
+            _dbg(f"施設数: {len(all_vals)}")
+            targets = ([all_vals[-1], all_vals[0]] if test_mode else list(reversed(all_vals)))
+
+            def _set_year_month():
+                """ページ再読み込み後も毎回年・月を設定する"""
+                try:
+                    if css_y:
+                        Select(driver.find_element(By.CSS_SELECTOR, css_y)).select_by_value(str(year))
+                        _dbg(f"年設定: {year}")
+                    if css_m:
+                        Select(driver.find_element(By.CSS_SELECTOR, css_m)).select_by_value(str(month))
+                        _dbg(f"月設定: {month}")
+                except Exception:
+                    _dbg(f"年月設定失敗:\n{_tb.format_exc()}")
+
+            total = 0
+            for val in targets:
+                # 施設選択
+                try:
+                    Select(driver.find_element(By.CSS_SELECTOR, css_s)).select_by_value(val)
+                    _dbg(f"施設選択: {val}")
+                    time.sleep(0.3)
+                except Exception:
+                    _dbg(f"施設選択失敗 val={val}:\n{_tb.format_exc()}")
+                    continue
+
+                # 年・月を設定（ページ再読み込み後にリセットされるため毎回実行）
+                _set_year_month()
+                time.sleep(0.3)
+
+                # 表示変更をSeleniumでクリック（画像認識より確実）
+                hyoji_clicked = False
+                try:
+                    hyoji_btn = driver.find_element(
+                        By.XPATH,
+                        "//input[@value='表示変更'] | //button[normalize-space()='表示変更']"
+                        " | //input[@type='submit' and contains(@value,'表示')]"
+                    )
+                    driver.execute_script("arguments[0].click();", hyoji_btn)
+                    _dbg("表示変更 Seleniumクリック成功")
+                    time.sleep(5)
+                    hyoji_clicked = True
+                except Exception:
+                    _dbg(f"表示変更 Seleniumクリック失敗 → 画像認識にフォールバック:\n{_tb.format_exc()}")
+
                 focus_chrome()
                 time.sleep(0.3)
-                if not focus_shisetsu_dd():
-                    break
+                if do_one_shisetsu(skip_hyoji=hyoji_clicked):
+                    total += 1
 
-                pyautogui.press('end')
-                time.sleep(0.2)
+            return total
 
-                import numpy as np
-                before_ss = pyautogui.screenshot()
-                pyautogui.press('up')
-                time.sleep(0.2)
-                after_ss = pyautogui.screenshot()
-                b = np.array(before_ss)
-                a = np.array(after_ss)
-                if np.array_equal(b, a):
-                    break
-                else:
-                    pyautogui.press('down')
-                    time.sleep(0.2)
-
-        return total
+        except Exception:
+            _dbg(f"Selenium操作中エラー:\n{_tb.format_exc()}")
+            return -1
 
     except Exception:
+        _dbg(f"process_site 予期しないエラー:\n{_tb.format_exc()}")
         return -1
 
 
