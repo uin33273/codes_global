@@ -138,5 +138,4 @@ def main():
     root.destroy()
     sys.exit()
 
-if __name__ == "__main__":
-    main()
+
