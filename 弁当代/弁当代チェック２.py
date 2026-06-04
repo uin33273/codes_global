@@ -1,3 +1,5 @@
+#最初にxlsxファイルを取り込み、弁当注文人数の列を探して、0より大きい行だけ抽出して結合するコード
+#"C:\Users\owner\Desktop\works\保管書類\table_HHHL共通店舗一覧m.xlsm"をマスタとして参照している
 import pandas as pd
 import openpyxl
 import os
@@ -12,7 +14,11 @@ from openpyxl.styles import PatternFill, Font
 
 warnings.simplefilter('ignore', UserWarning)
 
-REF_PATH = r"C:\Users\owner\Desktop\works\保管書類\codes\弁当代\table_HHHL共通店舗一覧m.xlsm"
+REF_PATH = r"C:\Users\owner\Desktop\works\保管書類\table_HHHL共通店舗一覧m.xlsm"
+
+def norm(name):
+    """店舗名から「店」を除去して正規化（照合用）"""
+    return str(name).strip().replace("店", "")
 
 def load_url_map():
     url_map = {}
@@ -23,7 +29,7 @@ def load_url_map():
             shop = row[0]
             url  = row[3]
             if shop:
-                url_map[str(shop).strip()] = str(url).strip() if url else ""
+                url_map[norm(shop)] = str(url).strip() if url else ""
         wb.close()
     except Exception as e:
         messagebox.showwarning("参照ファイル読み込みエラー", f"レク費urlリストを読み込めませんでした:\n{e}")
@@ -90,6 +96,7 @@ def main():
 
         combined_list = []
         zero_shops    = []
+        found_shop_names = set()  # 処理済み店舗名を記録
 
         progress_window = tk.Toplevel(root)
         progress_window.title("データ集計中...")
@@ -115,6 +122,8 @@ def main():
                 ws_in = wb_in[target_ym]
                 shop_name = ws_in["B3"].value if ws_in["B3"].value else "名称不明"
                 wb_in.close()
+
+                found_shop_names.add(norm(shop_name))  # 処理済みとして記録
 
                 df_raw = pd.read_excel(file_path, sheet_name=target_ym, header=None, engine='openpyxl')
 
@@ -161,7 +170,7 @@ def main():
                     zero_shops.append({
                         'ファイル名': filename,
                         '店舗名': shop_name,
-                        'url': url_map.get(str(shop_name).strip(), "")
+                        'url': url_map.get(norm(shop_name), "")
                     })
                     continue
 
@@ -178,7 +187,7 @@ def main():
                     zero_shops.append({
                         'ファイル名': filename,
                         '店舗名': shop_name,
-                        'url': url_map.get(str(shop_name).strip(), "")
+                        'url': url_map.get(norm(shop_name), "")
                     })
 
             except:
@@ -186,7 +195,14 @@ def main():
 
         progress_window.destroy()
 
-        if combined_list or zero_shops:
+        # リストシートにあるがファイルが存在しない店舗
+        missing_shops = [
+            {'ファイル名': '', '店舗名': name, 'url': url}
+            for name, url in url_map.items()
+            if norm(name) not in found_shop_names
+        ]
+
+        if combined_list or zero_shops or missing_shops:
             now = datetime.now().strftime("%Y%m%d_%H%M")
             output_name = f"弁当チェック_{target_ym}_{now}.xlsx"
             save_path = os.path.join(os.path.expanduser("~"), "Downloads", output_name)
@@ -205,11 +221,11 @@ def main():
                 final_df['日付'] = final_df['sort_date'].apply(format_md)
                 final_df = final_df.drop(columns=['sort_date'])
 
-                final_df.insert(0, 'レク費url', final_df['店舗名'].apply(
-                    lambda s: url_map.get(str(s).strip(), "")
+                final_df.insert(0, '【注文あり店舗】レク費url', final_df['店舗名'].apply(
+                    lambda s: url_map.get(norm(s), "")
                 ))
             else:
-                final_df = pd.DataFrame(columns=['レク費url', 'ファイル名', '店舗名', '日付', '弁当注文人数'])
+                final_df = pd.DataFrame(columns=['【注文あり店舗】レク費url', 'ファイル名', '店舗名', '日付', '弁当注文人数'])
 
             final_df.to_excel(save_path, index=False)
 
@@ -226,7 +242,7 @@ def main():
                     cell.value     = url_val
                     cell.font      = hyperlink_font
 
-            # 縞模様（日付列=4列目で切り替え）
+            # 縞模様
             fill_gray = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
             current_fill = False
             last_date = None
@@ -245,27 +261,49 @@ def main():
             ws.column_dimensions['D'].width  = 10
             ws.column_dimensions['E'].width  = 15
 
-            # 末尾に注文なし店舗セクション
-            if zero_shops:
+            # 末尾セクション共通処理
+            def append_section_with_url(ws, shops, header_texts, header_color, row_color, url_key='url', name_key='店舗名'):
                 blank_row = ws.max_row + 2
-                fill_h = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
-                fill_r = PatternFill(start_color="FFE0E0", end_color="FFE0E0", fill_type="solid")
+                fill_h = PatternFill(start_color=header_color, end_color=header_color, fill_type="solid")
+                fill_r = PatternFill(start_color=row_color,    end_color=row_color,    fill_type="solid")
                 bold   = Font(bold=True)
-                for col_idx, text in enumerate(["【注文なし店舗】レク費url", "ファイル名", "店舗名"], start=1):
+                for col_idx, text in enumerate(header_texts, start=1):
                     cell = ws.cell(row=blank_row, column=col_idx, value=text)
                     cell.fill = fill_h
                     cell.font = bold
-                for shop in zero_shops:
+                for shop in shops:
                     blank_row += 1
-                    url_val  = shop.get('url', "")
+                    url_val  = shop.get(url_key, "")
                     url_cell = ws.cell(row=blank_row, column=1)
                     url_cell.fill = fill_r
                     if url_val and str(url_val).startswith("http"):
                         url_cell.hyperlink = url_val
                         url_cell.value     = url_val
                         url_cell.font      = Font(color="0563C1", underline="single")
-                    ws.cell(row=blank_row, column=2, value=shop['ファイル名']).fill = fill_r
-                    ws.cell(row=blank_row, column=3, value=shop['店舗名']).fill     = fill_r
+                    col = 2
+                    if 'ファイル名' in shop:
+                        ws.cell(row=blank_row, column=col, value=shop['ファイル名']).fill = fill_r
+                        col += 1
+                    ws.cell(row=blank_row, column=col, value=shop[name_key]).fill = fill_r
+
+            if zero_shops:
+                append_section_with_url(
+                    ws, zero_shops,
+                    ["【注文なし店舗】レク費url", "ファイル名", "店舗名"],
+                    "FFFF00", "FFE0E0"
+                )
+
+            if missing_shops:
+                upper_names = set(final_df['店舗名'].apply(norm)) | \
+                              {norm(s['店舗名']) for s in zero_shops}
+                missing_shops = [s for s in missing_shops if norm(s['店舗名']) not in upper_names]
+
+            if missing_shops:
+                append_section_with_url(
+                    ws, missing_shops,
+                    ["【ファイルなし店舗】レク費url", "ファイル名", "店舗名"],
+                    "FFC000", "FFE8CC"
+                )
 
             wb.save(save_path)
             messagebox.showinfo("完了", f"保存しました：\n{output_name}")
