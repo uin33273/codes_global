@@ -29,7 +29,7 @@ def load_url_map():
             shop = row[0]
             url  = row[3]
             if shop:
-                url_map[norm(shop)] = str(url).strip() if url else ""
+                url_map[str(shop).strip()] = str(url).strip() if url else ""
         wb.close()
     except Exception as e:
         messagebox.showwarning("参照ファイル読み込みエラー", f"レク費urlリストを読み込めませんでした:\n{e}")
@@ -40,7 +40,8 @@ def main():
     root.withdraw()
     root.attributes("-topmost", True)
 
-    url_map = load_url_map()
+    url_map    = load_url_map()
+    url_lookup = {norm(k): v for k, v in url_map.items()}  # 照合用（「店」除去済みキー→url）
 
     target_ym = simpledialog.askstring("入力", "抽出する年月を入力してください\n（例: 202604）", parent=root)
     if not target_ym: return
@@ -170,7 +171,7 @@ def main():
                     zero_shops.append({
                         'ファイル名': filename,
                         '店舗名': shop_name,
-                        'url': url_map.get(norm(shop_name), "")
+                        'url': url_lookup.get(norm(shop_name), "")
                     })
                     continue
 
@@ -187,7 +188,7 @@ def main():
                     zero_shops.append({
                         'ファイル名': filename,
                         '店舗名': shop_name,
-                        'url': url_map.get(norm(shop_name), "")
+                        'url': url_lookup.get(norm(shop_name), "")
                     })
 
             except:
@@ -197,8 +198,8 @@ def main():
 
         # リストシートにあるがファイルが存在しない店舗
         missing_shops = [
-            {'ファイル名': '', '店舗名': name, 'url': url}
-            for name, url in url_map.items()
+            {'ファイル名': '', '店舗名': name, 'url': url_lookup.get(norm(name), "")}
+            for name in url_map
             if norm(name) not in found_shop_names
         ]
 
@@ -222,7 +223,7 @@ def main():
                 final_df = final_df.drop(columns=['sort_date'])
 
                 final_df.insert(0, '【注文あり店舗】レク費url', final_df['店舗名'].apply(
-                    lambda s: url_map.get(norm(s), "")
+                    lambda s: url_lookup.get(norm(s), "")
                 ))
             else:
                 final_df = pd.DataFrame(columns=['【注文あり店舗】レク費url', 'ファイル名', '店舗名', '日付', '弁当注文人数'])
