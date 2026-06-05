@@ -1,5 +1,9 @@
 #最初にxlsxファイルを取り込み、弁当注文人数の列を探して、0より大きい行だけ抽出して結合するコード
-#"C:\Users\owner\Desktop\works\保管書類\table_HHHL共通店舗一覧m.xlsm"をマスタとして参照している
+#"C:\Users\owner\Desktop\works\保管書類\codes\global_shoplist\table_HHHL共通店舗一覧m.xlsm"をマスタとして参照している
+#出力は「弁当チェック_年月_yyyymmdd_hhmm.xlsx」という名前で、ダウンロードフォルダに保存される
+#出力ファイルのA列には、マスタにURLがあればハイパーリンクで表示される
+#店舗名がマスタにあるがファイルが存在しない店舗は、末尾のセクションに「【ファイルなし店舗】レク費urlリストにあるがファイルが存在しない店舗」としてまとめて表示される（ただし、店舗名が類似しているものは除外される）
+#店舗名が空欄のファイルは、ファイル名から店舗名を推測して照合する（例：ファイル名に「【○○店】」のように店舗名が含まれていれば、それを店舗名として扱う）
 import pandas as pd
 import openpyxl
 import os
@@ -8,13 +12,23 @@ import tempfile
 import tkinter as tk
 from tkinter import filedialog, simpledialog, messagebox, ttk
 import sys
+import unicodedata
 import warnings
 from datetime import datetime
 from openpyxl.styles import PatternFill, Font
 
 warnings.simplefilter('ignore', UserWarning)
 
-REF_PATH = r"C:\Users\owner\Desktop\works\保管書類\table_HHHL共通店舗一覧m.xlsm"
+REF_PATH = r"C:\Users\owner\Desktop\works\保管書類\codes\global_shoplist\table_HHHL共通店舗一覧m.xlsm"
+
+def fix_kana(s):
+    # 小書き「ヶ」を大書き「ケ」に統一する（例：雨ヶ谷→雨ケ谷）
+    # ファイル名・店舗名の表記ゆれを吸収するための正規化
+    return str(s).replace("ヶ", "ケ")
+
+def half_upper(s):
+    """先頭5文字比較用：全角英数字を半角に変換して大文字化"""
+    return unicodedata.normalize('NFKC', str(s)).upper()
 
 def norm(name):
     """店舗名を正規化（照合用）：前後空白・全半角スペース・「店」を除去"""
@@ -124,8 +138,17 @@ def main():
 
                 wb_in = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
                 ws_in = wb_in[target_ym]
-                shop_name = ws_in["B3"].value if ws_in["B3"].value else "名称不明"
+                shop_name = ws_in["B3"].value if ws_in["B3"].value else None
+                if not shop_name:
+                    import re
+                    m = re.search(r'【(.+?)】', filename)
+                    shop_name = m.group(1) if m else "名称不明"
                 wb_in.close()
+
+                # 店舗名の「ヶ」→「ケ」表記ゆれを統一する
+                shop_name = fix_kana(shop_name)
+                # ファイル名（出力表示用）の「ヶ」→「ケ」表記ゆれを統一する
+                disp_filename = fix_kana(filename)
 
                 found_shop_names.add(norm(shop_name))        # norm済みで登録
                 found_shop_names.add(str(shop_name).strip()) # 元の名前でも登録
@@ -173,16 +196,16 @@ def main():
 
                 if df_filtered.empty and total <= 0:
                     zero_shops.append({
-                        'ファイル名': filename,
-                        '店舗名': shop_name,
+                        'ファイル名': disp_filename,  # 表記ゆれ修正済みのファイル名を使用
+                        '店舗名': shop_name,           # 表記ゆれ修正済みの店舗名を使用
                         'url': url_lookup.get(norm(shop_name), "")
                     })
                     continue
 
                 if not df_filtered.empty:
                     df_filtered = df_filtered.copy()
-                    df_filtered['ファイル名'] = filename
-                    df_filtered['店舗名']    = shop_name
+                    df_filtered['ファイル名'] = disp_filename  # 表記ゆれ修正済みのファイル名を使用
+                    df_filtered['店舗名']    = shop_name       # 表記ゆれ修正済みの店舗名を使用
                     df_filtered['sort_date'] = pd.to_datetime(df_filtered[col_name_date], errors='coerce')
 
                     res_df = df_filtered[['ファイル名', '店舗名', col_name_date, col_name_bento, 'sort_date']]
@@ -301,13 +324,13 @@ def main():
 #【ファイルなし店舗】レク費urlリストにあるがファイルが存在しない店舗のうち、店舗名が類似しているものを除外（例：先頭5文字で照合）
             if missing_shops:
                 upper_prefixes = {
-                    str(n).strip()[:5]
+                    half_upper(str(n).strip()[:5])
                     for n in (set(final_df['店舗名']) | {s['店舗名'] for s in zero_shops})
                     if len(str(n).strip()) >= 5
                 }
                 missing_shops = [
                     s for s in missing_shops
-                    if str(s['店舗名']).strip()[:5] not in upper_prefixes
+                    if half_upper(str(s['店舗名']).strip()[:5]) not in upper_prefixes
                 ]
 
             if missing_shops:
