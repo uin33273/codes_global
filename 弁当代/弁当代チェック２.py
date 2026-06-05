@@ -17,8 +17,11 @@ warnings.simplefilter('ignore', UserWarning)
 REF_PATH = r"C:\Users\owner\Desktop\works\保管書類\table_HHHL共通店舗一覧m.xlsm"
 
 def norm(name):
-    """店舗名から「店」を除去して正規化（照合用）"""
-    return str(name).strip().replace("店", "")
+    """店舗名を正規化（照合用）：前後空白・全半角スペース・「店」を除去"""
+    return (str(name).strip()
+            .replace("店", "")
+            .replace(" ", "")
+            .replace("　", ""))
 
 def load_url_map():
     url_map = {}
@@ -124,7 +127,8 @@ def main():
                 shop_name = ws_in["B3"].value if ws_in["B3"].value else "名称不明"
                 wb_in.close()
 
-                found_shop_names.add(norm(shop_name))  # 処理済みとして記録
+                found_shop_names.add(norm(shop_name))        # norm済みで登録
+                found_shop_names.add(str(shop_name).strip()) # 元の名前でも登録
 
                 df_raw = pd.read_excel(file_path, sheet_name=target_ym, header=None, engine='openpyxl')
 
@@ -201,6 +205,7 @@ def main():
             {'ファイル名': '', '店舗名': name, 'url': url_lookup.get(norm(name), "")}
             for name in url_map
             if norm(name) not in found_shop_names
+            and name not in found_shop_names
         ]
 
         if combined_list or zero_shops or missing_shops:
@@ -293,11 +298,17 @@ def main():
                     ["【注文なし店舗】レク費url", "ファイル名", "店舗名"],
                     "FFFF00", "FFE0E0"
                 )
-
+#【ファイルなし店舗】レク費urlリストにあるがファイルが存在しない店舗のうち、店舗名が類似しているものを除外（例：先頭5文字で照合）
             if missing_shops:
-                upper_names = set(final_df['店舗名'].apply(norm)) | \
-                              {norm(s['店舗名']) for s in zero_shops}
-                missing_shops = [s for s in missing_shops if norm(s['店舗名']) not in upper_names]
+                upper_prefixes = {
+                    str(n).strip()[:5]
+                    for n in (set(final_df['店舗名']) | {s['店舗名'] for s in zero_shops})
+                    if len(str(n).strip()) >= 5
+                }
+                missing_shops = [
+                    s for s in missing_shops
+                    if str(s['店舗名']).strip()[:5] not in upper_prefixes
+                ]
 
             if missing_shops:
                 append_section_with_url(
