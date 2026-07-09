@@ -15,7 +15,7 @@ import sys
 import unicodedata
 import warnings
 from datetime import datetime
-from openpyxl.styles import PatternFill, Font
+from openpyxl.styles import PatternFill, Font, Alignment
 
 warnings.simplefilter('ignore', UserWarning)
 
@@ -280,25 +280,22 @@ def main():
                     cell.value     = url_val
                     cell.font      = hyperlink_font
 
-            # 縞模様
+            # 縞模様（店舗名が同じ間は同じ色にする）
             fill_gray = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
             current_fill = False
-            last_date = None
+            last_shop = None
             for row_idx in range(2, ws.max_row + 1):
-                date_val = str(ws.cell(row=row_idx, column=5).value)
-                if date_val != last_date:
+                shop_val = str(ws.cell(row=row_idx, column=4).value)
+                if shop_val != last_shop:
                     current_fill = not current_fill
-                    last_date = date_val
+                    last_shop = shop_val
                 if current_fill:
                     for col_idx in range(1, 7):
                         ws.cell(row=row_idx, column=col_idx).fill = fill_gray
 
-            ws.column_dimensions['A'].width  = 10
+            ws.column_dimensions['A'].width  = 4
             ws.column_dimensions['B'].hidden = True
-            ws.column_dimensions['C'].width  = 12
-            ws.column_dimensions['D'].width  = 30
-            ws.column_dimensions['E'].width  = 10
-            ws.column_dimensions['F'].width  = 15
+            ws.column_dimensions['F'].width  = 4
 
             # 末尾セクション共通処理
             def append_section_with_url(ws, shops, header_texts, header_color, row_color, url_key='url', name_key='店舗名', category_key='区分'):
@@ -352,6 +349,20 @@ def main():
                     ["【ファイルなし店舗】レク費url", "ファイル名", "区分", "店舗名"],
                     "FFC000", "FFE8CC"
                 )
+
+            # C,D,E列を内容に合わせて幅自動調整
+            for col_letter, col_idx in [('C', 3), ('D', 4), ('E', 5)]:
+                max_len = max(
+                    (len(str(ws.cell(row=r, column=col_idx).value))
+                     for r in range(2, ws.max_row + 1)
+                     if ws.cell(row=r, column=col_idx).value not in (None, "")),
+                    default=8
+                )
+                ws.column_dimensions[col_letter].width = max_len + 2
+
+            # ヘッダー行：折り返して全体を表示し、高さは自動調整のため明示指定しない
+            for cell in ws[1]:
+                cell.alignment = Alignment(wrap_text=True, vertical='center')
 
             wb.save(save_path)
             messagebox.showinfo("完了", f"保存しました：\n{output_name}")
