@@ -1,10 +1,39 @@
-#このアプリは、前処理済みのCSVファイルとマスターファイル（Excel）を選択して、注文データを集計・加工し、最終的にExcelファイルとして保存するものです。
+# このアプリは、前処理済みのCSVファイルとマスターファイル（Excel）を選択して、注文データを集計・加工し、最終的にExcelファイルとして保存するものです。
 # 主な機能は以下の通りです：
-# 1. 複数のCSVファイルを選択して、特定の末尾番号に基づいて口座番号をマッピングし、最終行と「キャンセル」を含む行を削除してから、すべてのデータを結合する。
+# 1. CSVファイルを読み込み、注文データを結合する。
 # 2. マスターファイルから店舗名のリストを取得し、お届け先部署名を変換して店番付き店舗名を作成する。
 # 3. 注文番号ごとに合計金額を計算し、商品名を加工して代表的な商品名を作成する。
-# 4. 最終的な集計結果をExcelファイルとして保存し、ウィンドウ枠の固定や色分け、列幅の調整などの書式設定を行う。
-#これまでは金額が最大のものを機械的に選んでいましたが、その結果が 「少額受注配送料」 になってしまう場合に限り、同じ注文番号内の他の商品名（配送料以外） を探して採用する処理を追加しています。
+# 4. 最終的な集計結果をExcelファイルとして保存し、書式設定を行う。
+# 代表商品名は金額最大のものを選ぶが、「少額受注配送料」になる場合は他の商品名を採用する。
+#
+# ■ お届け先部署名 → 店番付き店舗名 変換ルール
+#
+# 【除去・置換】（この順で処理）
+#   「店」         → 削除
+#   「グローバル」  → 削除
+#   全角英数字     → 半角に統一（例：Ａ→A）
+#   「前橋青葉」   → 「前橋青葉町」に置換
+#
+# 【プレフィックス変換】
+#   メソッド（キッズの有無を問わず） → KM
+#   キッズ（メソッドなし）           → K
+#   パーク                           → P  （KP、KMPなど組み合わせ可）
+#   サカフル                         → SF
+#   ナーシングホーム                 → NH （ホームより優先）
+#   ホーム（グローバルホーム）       → GH
+#   ツリー                           → T
+#
+# 【特別扱い】
+#   平出事務所     → そのまま「平出事務所」
+#   お届け先空欄  → 「空欄」（紫色セル）
+#   一致なし・複数一致 → 「未登録」（黄色セル）
+#
+# 【変換例】
+#   グローバルキッズメソッド岩曽店       → KM岩曽    → 001KM岩曽
+#   グローバルキッズパークせんげん台店   → KP せんげん台 → 001KPせんげん台
+#   メソッド新栃木店                     → KM新栃木  → 157KM新栃木
+#   グローバルホーム加須店               → GH加須    → 003GH加須
+#   グローバルワークスA店                → ワークスA → 001ワークスA
 import pandas as pd
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -17,19 +46,20 @@ from openpyxl.utils import get_column_letter
 def process_order_data():
     root = tk.Tk()
     root.withdraw()
-    
+
+    downloads = str(Path.home() / "Downloads")
     messagebox.showinfo("手順1", "カウネット中間データファイルを選択してください")
-    file_path = filedialog.askopenfilename(title="CSV選択", filetypes=[("CSV", "*.csv")])
+    file_path = filedialog.askopenfilename(title="CSV選択", filetypes=[("CSV", "*.csv")], initialdir=downloads)
     if not file_path: return
 
-    messagebox.showinfo("手順2", "マスターファイルを選択してください")
-    master_path = filedialog.askopenfilename(title="マスター選択", filetypes=[("Excel", "*.xlsx *.xls")])
+    messagebox.showinfo("手順2", "table_HHHL共通店舗一覧mを選択してください")
+    master_path = filedialog.askopenfilename(title="マスター選択", filetypes=[("Excel", "*.xlsx *.xls *.xlsm")])
     if not master_path: return
 
     try:
         # --- マスターの読み込み ---
         master_df = pd.read_excel(master_path, sheet_name='リスト', header=None)
-        master_list = master_df.iloc[:, 2].dropna().astype(str).str.strip().tolist()
+        master_list = master_df.iloc[:, 0].dropna().astype(str).str.strip().tolist()
 
         # --- CSVの読み込み ---
         df = pd.read_csv(file_path, encoding='cp932')
@@ -74,18 +104,22 @@ def process_order_data():
         # --- 変換店舗名の作成 ---
         def create_conv_name(target):
             if not isinstance(target, str): return ""
-            # ✅ 平出事務所はそのまま返す
+            # 平出事務所はそのまま返す
             if str(target).strip() == "平出事務所":
                 return "平出事務所"
-            name = target.replace("店", "").replace(" ", "").replace("　", "")
+            name = target.replace("店", "").replace("グローバル", "").replace(" ", "").replace("　", "")
+            name = name.replace("前橋青葉", "前橋青葉町")
             prefix = ""
-            if "キッズ" in name: prefix += "K"
-            if "メソッド" in name: prefix += "M"
-            if "パーク" in name: prefix = "P"
-            if "サカフル" in name: prefix = "SF"
-            parts = re.split(r'キッズ|メソッド|パーク|サカフル', name)
+            if "メソッド" in name: prefix += "KM"
+            elif "キッズ" in name: prefix += "K"
+            if "パーク" in name: prefix += "P"
+            if "サカフル" in name: prefix += "SF"
+            if "ナーシングホーム" in name: prefix += "NH"
+            elif "ホーム" in name: prefix += "GH"
+            if "ツリー" in name: prefix += "T"
+            parts = re.split(r'キッズ|メソッド|パーク|サカフル|ナーシングホーム|ホーム|ツリー', name)
             sub_name = parts[-1] if len(parts) > 1 else name
-            # ✅ 店名部分が空（prefixのみ）の場合は空欄扱いにする
+            # 店名部分が空（prefixのみ）の場合は空欄扱いにする
             if sub_name == "":
                 return ""
             return f"{prefix}{sub_name}"
@@ -94,24 +128,23 @@ def process_order_data():
 
         # --- マスターと照合 ---
         def find_full_name(row):
-            # お届け先部署名が空欄の場合は「空欄」を返す
             dept = row['お届け先部署名']
             if not isinstance(dept, str) or dept.strip() == "":
                 return "空欄"
             conv_name = row['変換店舗名']
-            # ✅ 店名部分なし（グローバルキッズメソッドのみ等）も空欄扱い
+            # 店名部分なし（グローバルキッズメソッドのみ等）も空欄扱い
             if not conv_name: return "空欄"
-            # マスターは「番号+prefix+店名」形式（例: 102KPせんげん台）
-            # conv_nameは「prefix+店名」形式（例: KPせんげん台）なので先頭の番号を除いて照合
-            for m in master_list:
-                m_without_num = re.sub(r'^\d+', '', m)
-                if m_without_num == conv_name:
-                    return m
-            # 部分一致でも探す（後方互換）
-            for m in master_list:
-                if conv_name in m:
-                    return m
-            return "未登録"
+            # マスターは「番号+prefix+店名」形式（例: 001KM岩曽）
+            # conv_nameは「prefix+店名」形式（例: KM岩曽）なので先頭の番号を除いて完全一致照合
+            def normalize(s):
+                import unicodedata
+                s = unicodedata.normalize('NFKC', s)
+                return s.replace("店", "").replace(" ", "").replace("　", "").strip()
+            matches = [m for m in master_list if normalize(re.sub(r'^\d+', '', m)) == normalize(conv_name)]
+            # 一致なし または 複数一致 → 未登録
+            if len(matches) != 1:
+                return "未登録"
+            return matches[0]
 
         representative['店番付き店舗名'] = representative.apply(find_full_name, axis=1)
         result = pd.merge(representative, total_amounts, on='伝票番号')
@@ -128,18 +161,18 @@ def process_order_data():
         # --- 保存・書式設定 ---
         save_path = Path.home() / "Downloads" / "カウネットコピペデータ.xlsx"
         has_unregistered = False
-        
+
         with pd.ExcelWriter(save_path, engine='openpyxl') as writer:
             final_result.to_excel(writer, index=False, sheet_name='集計結果')
             ws = writer.sheets['集計結果']
             ws.freeze_panes = 'B2'
             tel_fill = PatternFill(start_color="E1F5FE", end_color="E1F5FE", fill_type="solid")
             alert_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
-            
+
             tel_col_idx = cols.index("ご登録電話番号") + 1
             amount_col_idx = cols.index("合計金額") + 1
             master_col_idx = cols.index("店番付き店舗名") + 1
-            
+
             prev_tel = None
             is_colored = False
 
@@ -150,7 +183,7 @@ def process_order_data():
                 if is_colored:
                     for col_idx in range(1, ws.max_column + 1):
                         ws.cell(row=row_idx, column=col_idx).fill = tel_fill
-                
+
                 master_cell = ws.cell(row=row_idx, column=master_col_idx)
                 if master_cell.value == "未登録":
                     master_cell.fill = alert_fill
@@ -178,6 +211,8 @@ def process_order_data():
             messagebox.showwarning("完了（警告あり）", "保存が完了しましたが、未登録の店舗があります。")
         else:
             messagebox.showinfo("完了", "保存が完了しました！")
+        import os
+        os.startfile(save_path)
 
     except PermissionError:
         messagebox.showwarning(
