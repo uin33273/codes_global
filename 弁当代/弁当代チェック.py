@@ -326,6 +326,7 @@ def main():
                     ws.cell(row=blank_row, column=col, value=shop[name_key]).fill = fill_r
 
             if zero_shops:
+                zero_shops = sorted(zero_shops, key=lambda s: (s.get('区分', ''), s.get('店舗名', '')))
                 append_section_with_url(
                     ws, zero_shops,
                     ["【注文なし店舗】レク費url", "ファイル名", "区分", "店舗名"],
@@ -344,6 +345,7 @@ def main():
                 ]
 
             if missing_shops:
+                missing_shops = sorted(missing_shops, key=lambda s: (s.get('区分', ''), s.get('店舗名', '')))
                 append_section_with_url(
                     ws, missing_shops,
                     ["【ファイルなし店舗】レク費url", "ファイル名", "区分", "店舗名"],
