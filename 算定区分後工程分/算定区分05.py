@@ -59,11 +59,11 @@ class FinalProcessorApp:
         try:
             # データ処理開始
             wb_agg = openpyxl.load_workbook(path_agg, data_only=True)
-            ws_agg = wb_agg["集計"]
+            ws_agg = wb_agg["稼働数"]
             col_shop_agg = find_column_by_header(ws_agg, 3, "店舗名")
-            
+
             if not col_shop_agg:
-                messagebox.showerror("エラー", "集計表に『店舗名』が見つかりません。", parent=self.root)
+                messagebox.showerror("エラー", "稼働数シートに『店舗名』が見つかりません。", parent=self.root)
                 self.root.destroy()
                 return
 

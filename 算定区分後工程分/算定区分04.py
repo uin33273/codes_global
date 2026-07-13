@@ -94,7 +94,7 @@ class ShopNameMatcherApp:
         
         try:
             # header=2は3行目が列名という意味
-            df_xlsx = pd.read_excel(path2, sheet_name='集計', header=2)
+            df_xlsx = pd.read_excel(path2, sheet_name='稼働数', header=2)
             xlsx_master = sorted(df_xlsx["店舗名"].dropna().astype(str).unique().tolist())
         except Exception as e:
             messagebox.showerror("エラー", f"Excelの読み込みに失敗しました。\n{e}", parent=self.root)

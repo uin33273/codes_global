@@ -1,11 +1,12 @@
 #サーバーからダウンロードしたZIPファイルや、ローカルのフォルダ内のCSV/Excelファイルの総計行を削除、利用サービスごとに分割(児=P、放=Mして各ファイルの縦合計を入力し、Excelファイルとして保存し、最後にまとめてZIPファイルにするスクリプトです。
 import os
 import shutil
-import zipfile
 import pandas as pd
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
-import threading
+from tkinter import messagebox, ttk
+from pathlib import Path
+
+import 算定区分01
 
 class SplitterApp:
     def __init__(self, root):
@@ -23,58 +24,49 @@ class SplitterApp:
         self.progress.pack(pady=5)
 
     def start_process(self):
-        downloads_path = os.path.join(os.path.expanduser("~"), "Downloads")
-        target_path = filedialog.askopenfilename(
-            title="converted_excels.zipを選択してください", 
-            initialdir=downloads_path,
-            filetypes=[("ZIP files", "*.zip")],
-            parent=self.root
-        )
-        
-        if target_path:
-            # 【重要修正】os.path.splitext(target_path)[0] にしないとタプルになりエラーになります
-            input_base_path = os.path.splitext(target_path)[0]
-            temp_dir = input_base_path + "_temp"
-            
-            if os.path.exists(temp_dir): shutil.rmtree(temp_dir)
-            os.makedirs(temp_dir, exist_ok=True)
-            self.run_task(temp_dir, input_base_path, target_path)
-            
-            # threading.Thread(target=self.run_task, args=(temp_dir, input_base_path, target_path), daemon=True).start()
-        else:
-            self.root.destroy()
+        downloads_path = Path(os.path.expanduser("~")) / "Downloads"
+        source_root = 算定区分01.find_source_root(downloads_path)
+        self.split_all_regions(source_root)
 
-    def run_task(self, temp_dir, input_base_path, target_path):
+    def split_all_regions(self, source_root):
+        """振り分け済みの各地域フォルダ内のExcelを一括で_放/_児に分割し、地域ごとにdownload.zipを作る（手選択なし）"""
         try:
-            with zipfile.ZipFile(target_path, 'r') as zip_ref:
-                zip_ref.extractall(temp_dir)
-            
-            files = [f for f in os.listdir(temp_dir) if f.lower().endswith((".csv", ".xlsx"))]
-            self.progress["maximum"] = len(files)
+            region_dirs = [算定区分01.get_destination_dir(source_root, code) for code in 算定区分01.REGION_MAP]
+            region_dirs = [d for d in region_dirs if d.exists()]
 
-            for i, filename in enumerate(files):
-                self.label.config(text=f"分割・合計処理中: {filename}")
+            # 分割対象＝まだ _放/_児 になっていないExcelファイル
+            target_files = []
+            for d in region_dirs:
+                for f in d.glob('*.xlsx'):
+                    if f.name.startswith('~$'): continue
+                    if f.stem.endswith('_放') or f.stem.endswith('_児'): continue
+                    target_files.append((d, f))
+
+            total = len(target_files)
+            if total == 0:
+                messagebox.showwarning("警告", "分割対象のExcelファイルが見つかりませんでした。", parent=self.root)
+                self.root.destroy()
+                return
+
+            self.progress["maximum"] = total
+
+            for i, (dest_dir, file_path) in enumerate(target_files, 1):
+                self.label.config(text=f"分割・合計処理中 ({i}/{total}): {file_path.name}")
                 self.root.update()
-                file_path = os.path.join(temp_dir, filename)
-                # 【重要修正】ここも[0]が必要
-                base_name = os.path.splitext(filename)[0]
-                
-                if filename.lower().endswith(".csv"):
-                    try: df = pd.read_csv(file_path, encoding='cp932')
-                    except: df = pd.read_csv(file_path, encoding='utf-8-sig')
-                else:
-                    df = pd.read_excel(file_path)
+                base_name = file_path.stem
+
+                df = pd.read_excel(file_path)
 
                 if not df.empty:
                     df = df[~df.iloc[:, 0].astype(str).str.contains(r"総計|\*集計", na=False)]
-                    
+
                     if '利用サービス' in df.columns:
                         for prefix in ["放", "児"]:
                             sub_df = df[df['利用サービス'].astype(str).str.startswith(prefix)].copy()
                             if not sub_df.empty:
                                 total_row = {}
                                 for col in sub_df.columns:
-                                    if col == sub_df.columns[0]: # 【修正】ここもindex指定に変更
+                                    if col == sub_df.columns[0]:
                                         total_row[col] = "総計"
                                     else:
                                         num_val = pd.to_numeric(sub_df[col], errors='coerce')
@@ -82,19 +74,19 @@ class SplitterApp:
                                             total_row[col] = num_val.sum()
                                         else:
                                             total_row[col] = ""
-                                
+
                                 sub_df = pd.concat([sub_df, pd.DataFrame([total_row])], ignore_index=True)
-                                sub_df.to_excel(os.path.join(temp_dir, f"{base_name}_{prefix}.xlsx"), index=False)
-                
-                os.remove(file_path)
-                self.progress["value"] = i + 1
+                                sub_df.to_excel(dest_dir / f"{base_name}_{prefix}.xlsx", index=False)
 
-            output_zip_base = input_base_path + "_分割済み"
-            shutil.make_archive(output_zip_base, 'zip', temp_dir)
-            shutil.rmtree(temp_dir)
-            os.remove(target_path)
+                file_path.unlink()
+                self.progress["value"] = i
 
-            messagebox.showinfo("完了", "分割と合計処理が完了しました。", parent=self.root)
+            # 202606フォルダ全体をまとめて、03.pyが読み込むconverted_excels_分割済み.zipを作成
+            downloads_path = Path(os.path.expanduser("~")) / "Downloads"
+            bundle_zip_base = downloads_path / "converted_excels_分割済み"
+            shutil.make_archive(str(bundle_zip_base), 'zip', str(source_root))
+
+            messagebox.showinfo("完了", f"分割と振り分けが完了しました。\n\n作成したZIP:\n{bundle_zip_base}.zip", parent=self.root)
         except Exception as e:
             messagebox.showerror("エラー", f"エラーが発生しました:\n{e}", parent=self.root)
         finally:

@@ -2,7 +2,6 @@ import json
 import logging
 import os
 import time
-import zipfile
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime, date
@@ -364,14 +363,6 @@ def main():
     was_stopped = progress.stop_requested
     progress.close()
 
-    zip_path = DOWNLOAD_DIR / f"downloads_{year}{month}_{sites[0]['id']}.zip"
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for site in sites:
-            site_dir = DOWNLOAD_DIR / f'{year}{month}' / site['id']
-            for csv_file in site_dir.glob('*.csv'):
-                zf.write(csv_file, csv_file.name)
-
-    logger.info(f'ZIP作成: {zip_path.name}')
     logger.info(f'{"=" * 40}')
     logger.info(f'全サイト完了  成功合計: {all_success} 件 / 失敗合計: {len(all_failure)} 件')
     if all_failure:

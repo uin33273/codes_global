@@ -1,0 +1,87 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>PDFツール起動メニュー</title>
+<HTA:APPLICATION
+    ID="pdfToolMenu"
+    APPLICATIONNAME="PDFツール起動メニュー"
+    SCROLL="no"
+    SINGLEINSTANCE="yes"
+    CAPTION="yes"
+    SYSMENU="yes"
+    MAXIMIZEBUTTON="no"
+    MINIMIZEBUTTON="yes"
+    BORDER="thin"
+/>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #f4f4f4;
+    font-family: "Meiryo", "Yu Gothic", sans-serif;
+  }
+  #wrap { padding: 20px; }
+  h1 {
+    font-size: 16px;
+    margin: 0 0 18px 0;
+    text-align: center;
+    color: #333;
+  }
+  button {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 14px;
+    margin-bottom: 12px;
+    font-size: 15px;
+    cursor: pointer;
+    border: 1px solid #999;
+    border-radius: 6px;
+    background: #ffffff;
+  }
+  button:hover { background: #e8f0fe; }
+  #closeBtn { background: #fdecea; }
+  #closeBtn:hover { background: #f8d7da; }
+</style>
+<script language="JScript">
+var baseDir = "";
+
+function initBaseDir() {
+    var fso = new ActiveXObject("Scripting.FileSystemObject");
+    var htaPath = decodeURIComponent(window.location.pathname);
+    if (htaPath.charAt(0) === "/") {
+        htaPath = htaPath.substring(1);
+    }
+    htaPath = htaPath.replace(/\//g, "\\");
+    baseDir = fso.GetParentFolderName(htaPath);
+}
+
+function runPython(scriptName) {
+    var shell = new ActiveXObject("WScript.Shell");
+    var scriptPath = baseDir + "\\" + scriptName;
+    shell.Run('python "' + scriptPath + '"', 1, false);
+}
+
+function closeMenu() {
+    window.close();
+}
+
+window.onload = function () {
+    initBaseDir();
+    window.resizeTo(360, 300);
+    var x = (screen.availWidth - 360) / 2;
+    var y = (screen.availHeight - 300) / 2;
+    window.moveTo(x, y);
+};
+</script>
+</head>
+<body>
+<div id="wrap">
+  <h1>ツール起動メニュー</h1>
+  <button onclick="runPython('PDF画像位置サイズ調整.py')">PDF画像調整</button>
+  <button onclick="runPython('イメージトリミング.py')">イメージトリミング</button>
+  <button id="closeBtn" onclick="closeMenu()">終了</button>
+</div>
+</body>
+</html>
