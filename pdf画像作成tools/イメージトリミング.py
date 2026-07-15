@@ -50,7 +50,16 @@ def autocrop(im, threshold=DEFAULT_THRESHOLD):
 def split_paths(line):
     """Split a line of one or more (optionally quoted) Windows paths
     without mangling backslashes the way shlex.split() would."""
-    return [quoted or bare for quoted, bare in re.findall(r'"([^"]+)"|(\S+)', line)]
+    line = line.strip()
+    # PowerShell prefixes a dragged file/folder with the call operator
+    # "&" and single-quotes the path (e.g. & 'C:\...\file.jpg'); strip
+    # that operator so the quoted path below is parsed normally
+    if line.startswith("&"):
+        line = line[1:].strip()
+    return [
+        dq or sq or bare
+        for dq, sq, bare in re.findall(r'"([^"]+)"|\'([^\']+)\'|(\S+)', line)
+    ]
 
 
 def process_one(path, threshold=DEFAULT_THRESHOLD, out_dir=None):

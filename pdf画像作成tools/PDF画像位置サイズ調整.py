@@ -33,6 +33,7 @@ import sys
 import os
 import re
 import tempfile
+import numpy as np
 from pptx import Presentation
 from pptx.util import Cm, Emu
 from pptx.enum.shapes import MSO_SHAPE_TYPE
@@ -41,9 +42,10 @@ from PIL import Image
 
 LANDSCAPE_WIDTH_CM = 12.76
 PORTRAIT_HEIGHT_CM = 16.7
+CROP_THRESHOLD = 245  # pixels lighter than this (near-white) are cropped away as margin
 
-# textboxes like "図00", "図1", "QRコード1" are treated as the image's label
-LABEL_PATTERN = re.compile(r"^(図|QRコード)\s*[0-9０-９]+$")
+# textboxes like "図00", "図1", "図2-1", "QRコード1" are treated as the image's label
+LABEL_PATTERN = re.compile(r"^(図|QRコード)\s*[0-9０-９]+(-[0-9０-９]+)*$")
 
 
 def is_picture_shape(shape):
@@ -61,35 +63,60 @@ def find_label_shape(slide):
     return None
 
 
+def autocrop(im, threshold=CROP_THRESHOLD):
+    """Crop away near-white whitespace margins, keeping the image's own mode."""
+    rgb = im.convert("RGB")
+    arr = np.array(rgb)
+    # a pixel counts as "content" if any channel is darker than threshold
+    mask = np.any(arr < threshold, axis=2)
+    rows = np.where(mask.any(axis=1))[0]
+    cols = np.where(mask.any(axis=0))[0]
+    if rows.size == 0 or cols.size == 0:
+        return im  # nothing but background found; return unchanged
+    top, bottom = rows[0], rows[-1]
+    left, right = cols[0], cols[-1]
+    return im.crop((left, top, right + 1, bottom + 1))
+
+
 def place_image_centered(slide, slide_width, slide_height, image_path):
     # remove existing pictures on the slide so the new one takes their place
     for shape in list(slide.shapes):
         if is_picture_shape(shape):
             shape._element.getparent().remove(shape._element)
 
+    # crop whitespace margins first, then size/center based on the
+    # cropped image so the label is positioned against the final bounds
+    ext = os.path.splitext(image_path)[1] or ".png"
     with Image.open(image_path) as im:
-        iw, ih = im.size
+        cropped = autocrop(im)
+        iw, ih = cropped.size
+        fd, cropped_path = tempfile.mkstemp(suffix=ext)
+        os.close(fd)
+        cropped.save(cropped_path)
 
-    if iw >= ih:  # landscape (or square)
-        width = Cm(LANDSCAPE_WIDTH_CM)
-        height = Emu(int(width * ih / iw))
-    else:  # portrait
-        height = Cm(PORTRAIT_HEIGHT_CM)
-        width = Emu(int(height * iw / ih))
-        # a near-square "portrait" image can end up wider than the page;
-        # cap the width and derive height from that instead
-        if width > Cm(LANDSCAPE_WIDTH_CM):
+    try:
+        if iw >= ih:  # landscape (or square)
             width = Cm(LANDSCAPE_WIDTH_CM)
             height = Emu(int(width * ih / iw))
+        else:  # portrait
+            height = Cm(PORTRAIT_HEIGHT_CM)
+            width = Emu(int(height * iw / ih))
+            # a near-square "portrait" image can end up wider than the page;
+            # cap the width and derive height from that instead
+            if width > Cm(LANDSCAPE_WIDTH_CM):
+                width = Cm(LANDSCAPE_WIDTH_CM)
+                height = Emu(int(width * ih / iw))
 
-    left = Emu(int((slide_width - width) / 2))
-    top = Emu(int((slide_height - height) / 2))
+        left = Emu(int((slide_width - width) / 2))
+        top = Emu(int((slide_height - height) / 2))
 
-    slide.shapes.add_picture(image_path, left, top, width, height)
+        slide.shapes.add_picture(cropped_path, left, top, width, height)
+    finally:
+        os.remove(cropped_path)
 
-    # move the "図NN" label so its bottom-left corner sits at the image's
-    # top-left corner (label directly above the image, text stays visible),
-    # wherever it happened to be placed originally
+    # align the "図NN" label's left edge with the image's left edge, and
+    # its bottom edge with the image's top edge (label directly above the
+    # image, text stays visible), wherever it happened to be placed originally
     label = find_label_shape(slide)
     if label is not None:
         label.left = left
@@ -115,7 +142,16 @@ def fix_existing_pictures(prs):
 def split_paths(line):
     """Split a line of one or more (optionally quoted) Windows paths
     without mangling backslashes the way shlex.split() would."""
-    return [quoted or bare for quoted, bare in re.findall(r'"([^"]+)"|(\S+)', line)]
+    line = line.strip()
+    # PowerShell prefixes a dragged file/folder with the call operator
+    # "&" and single-quotes the path (e.g. & 'C:\...\file.pptx'); strip
+    # that operator so the quoted path below is parsed normally
+    if line.startswith("&"):
+        line = line[1:].strip()
+    return [
+        dq or sq or bare
+        for dq, sq, bare in re.findall(r'"([^"]+)"|\'([^\']+)\'|(\S+)', line)
+    ]
 
 
 def process_one(path):
@@ -172,10 +208,12 @@ def main():
         interactive_loop()
         return
 
-    # a single .pptx argument (e.g. dragged onto the .bat) is handled the
-    # same way as a line typed into the interactive loop
+    # a single .pptx argument (e.g. dragged onto the .py/.bat icon directly)
+    # is handled the same way as a line typed into the interactive loop
     if len(sys.argv) == 2 and sys.argv[1].lower().endswith(".pptx"):
-        process_one(sys.argv[1])
+        output_path = process_one(sys.argv[1])
+        if output_path:
+            os.startfile(output_path)
         return
 
     template_path = sys.argv[1]
