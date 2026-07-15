@@ -1,11 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+import playwright
+
+driver_dir = os.path.join(os.path.dirname(playwright.__file__), 'driver')
 
 a = Analysis(
     ['算定区分CSVダウンロード.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[(driver_dir, 'playwright/driver')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

@@ -1,15 +1,22 @@
 import json
 import logging
 import os
+import subprocess
+import sys
+import threading
 import time
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime, date
 from pathlib import Path
+
+if getattr(sys, 'frozen', False) and not os.environ.get('PLAYWRIGHT_BROWSERS_PATH'):
+    os.environ['PLAYWRIGHT_BROWSERS_PATH'] = str(Path.home() / 'AppData' / 'Local' / 'ms-playwright')
+
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PWTimeoutError
 
-HUG_JSON_PATH = Path(r'C:\Users\owner\Desktop\HUG.json')
-DOWNLOAD_DIR = Path(r'C:\Users\owner\Downloads\算定区分データ')
+HUG_JSON_PATH = Path.home() / 'Desktop' / 'HUG.json'
+DOWNLOAD_DIR = Path.home() / 'Downloads' / '算定区分データ'
 
 SITES = [
     {'id': '01', 'name': '宇都宮', 'url': 'https://www.hug-globalkidsmethod.link/hug/wm/'},
@@ -275,14 +282,148 @@ def setup_log(year: str, month: str) -> tuple[logging.Logger, Path]:
     return logger, log_path
 
 
+def _chromium_installed() -> bool:
+    pw = sync_playwright().start()
+    try:
+        return Path(pw.chromium.executable_path).exists()
+    finally:
+        pw.stop()
+
+
+def ensure_chromium_installed():
+    """PyInstaller配布先PCに初回起動時、Chromium本体が無ければ自動ダウンロードする"""
+    if _chromium_installed():
+        return
+
+    wait_root = tk.Tk()
+    wait_root.title('初回準備')
+    wait_root.resizable(False, False)
+    wait_root.attributes('-topmost', True)
+
+    tk.Label(
+        wait_root,
+        text='初回起動のため、ブラウザ本体をダウンロードしています…\n'
+             '（インターネット接続が必要です。数分かかる場合があります）',
+        font=('Yu Gothic UI', 11), justify='left',
+    ).pack(padx=30, pady=(24, 10))
+
+    bar = ttk.Progressbar(wait_root, mode='indeterminate', length=360)
+    bar.pack(padx=30, pady=(0, 6))
+    bar.start(12)
+
+    status_var = tk.StringVar(value='準備中...')
+    tk.Label(
+        wait_root, textvariable=status_var, font=('Yu Gothic UI', 9),
+        fg='#555', wraplength=360, justify='left', anchor='w',
+    ).pack(fill='x', padx=30, pady=(0, 20))
+
+    wait_root.update()
+
+    from playwright._impl._driver import compute_driver_executable, get_driver_env
+    driver_executable, driver_cli = compute_driver_executable()
+
+    result = {}
+    status_holder = {'text': '準備中...'}
+
+    def do_install():
+        try:
+            proc = subprocess.Popen(
+                [str(driver_executable), str(driver_cli), 'install', 'chromium'],
+                env=get_driver_env(),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                bufsize=1,
+            )
+            buf = ''
+            while True:
+                ch = proc.stdout.read(1)
+                if ch == '' and proc.poll() is not None:
+                    break
+                if ch in ('\r', '\n'):
+                    line = buf.strip()
+                    buf = ''
+                    if line:
+                        status_holder['text'] = line[-80:]
+                else:
+                    buf += ch
+            proc.wait()
+            result['returncode'] = proc.returncode
+        except Exception as e:
+            result['error'] = str(e)
+
+    t = threading.Thread(target=do_install, daemon=True)
+    t.start()
+    while t.is_alive():
+        status_var.set(status_holder['text'])
+        wait_root.update()
+        time.sleep(0.05)
+    status_var.set(status_holder['text'])
+
+    bar.stop()
+    wait_root.destroy()
+
+    if not _chromium_installed():
+        _root = tk.Tk()
+        _root.withdraw()
+        detail = result.get('error') or status_holder['text']
+        messagebox.showerror(
+            'ブラウザのダウンロードに失敗しました',
+            'Chromiumブラウザのダウンロードに失敗しました。\n\n'
+            'インターネット接続を確認のうえ、アプリを起動し直してください。\n\n'
+            f'詳細: {detail}',
+        )
+        _root.destroy()
+        raise SystemExit('Chromiumのインストールに失敗しました')
+
+
+def load_credentials() -> dict:
+    if not HUG_JSON_PATH.exists():
+        _root = tk.Tk()
+        _root.withdraw()
+        messagebox.showerror(
+            'HUG.jsonが見つかりません',
+            f'ログイン情報ファイルが見つかりません。\n\n{HUG_JSON_PATH}\n\n'
+            'このPCのデスクトップに HUG.json を配置してください。',
+        )
+        _root.destroy()
+        raise SystemExit('HUG.json が見つかりません')
+
+    try:
+        creds = json.loads(HUG_JSON_PATH.read_text(encoding='utf-8'))
+    except Exception as e:
+        _root = tk.Tk()
+        _root.withdraw()
+        messagebox.showerror(
+            'HUG.jsonの読み込みエラー',
+            f'HUG.json の内容を読み込めませんでした。\n\n{HUG_JSON_PATH}\n\nエラー: {e}',
+        )
+        _root.destroy()
+        raise SystemExit('HUG.json の読み込みに失敗しました')
+
+    if 'id' not in creds or 'password' not in creds:
+        _root = tk.Tk()
+        _root.withdraw()
+        messagebox.showerror(
+            'HUG.jsonの内容エラー',
+            f'HUG.json に id / password が含まれていません。\n\n{HUG_JSON_PATH}',
+        )
+        _root.destroy()
+        raise SystemExit('HUG.json に id/password がありません')
+
+    return creds
+
+
 def main():
+    creds = load_credentials()
+    ensure_chromium_installed()
     year, month = ask_year_month()
     sites = ask_sites()
     logger, log_path = setup_log(year, month)
 
     logger.info(f'{year}年{month}月  対象: {", ".join(s["id"] + " " + s["name"] for s in sites)}')
-
-    creds = json.loads(HUG_JSON_PATH.read_text(encoding='utf-8'))
 
     all_success = 0
     all_failure = []
