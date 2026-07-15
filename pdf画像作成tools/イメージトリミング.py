@@ -1,12 +1,14 @@
 r"""
 Auto-crop an image's whitespace margins to the limit and save the result.
 
-- Dropping a single *.jpg file saves the cropped copy directly into the
-  fixed OUTPUT_DIR folder.
+- Dropping a single *.jpg file saves the cropped copy into the same
+  folder as the source file, named "<元のファイル名>_トリミング済.<ext>".
 - Dropping a folder processes every .jpg/.jpeg file inside it
-  (non-recursive) and saves the cropped copies into a subfolder of
-  OUTPUT_DIR named after the source folder (so results from different
-  dropped folders don't mix together).
+  (non-recursive) and saves the cropped copies into a folder created
+  next to it (i.e. in its parent folder), named "<フォルダ名>_トリミング済"
+  (if that name already exists, "(1)", "(2)", ... is appended).
+  e.g. dropping "...\6.3(5_9〆)\image" saves into
+       "...\6.3(5_9〆)\image_トリミング済".
 
 Two ways to use:
 
@@ -28,7 +30,6 @@ import re
 import numpy as np
 from PIL import Image
 
-OUTPUT_DIR = r"C:\Users\owner\Downloads\トリミング済画像"
 DEFAULT_THRESHOLD = 245
 
 
@@ -69,9 +70,17 @@ def process_one(path, threshold=DEFAULT_THRESHOLD, out_dir=None):
     cropped = autocrop(im, threshold)
     print(f"  トリミング後: {cropped.size}")
 
-    out_dir = out_dir or OUTPUT_DIR
+    if out_dir is None:
+        # top-level single-file drop: save next to the source file, suffixed
+        out_dir = os.path.dirname(os.path.abspath(path))
+        base, ext = os.path.splitext(os.path.basename(path))
+        out_name = f"{base}_トリミング済{ext}"
+    else:
+        # called while processing a folder: folder itself is already suffixed
+        out_name = os.path.basename(path)
+
     os.makedirs(out_dir, exist_ok=True)
-    out_path = os.path.join(out_dir, os.path.basename(path))
+    out_path = os.path.join(out_dir, out_name)
     cropped.convert("RGB").save(out_path, quality=95)
     print(f"  保存先: {out_path}")
 
@@ -96,7 +105,9 @@ def process_folder(folder, threshold=DEFAULT_THRESHOLD):
     if not names:
         print(f"  !! フォルダ内に.jpg/.jpegが見つかりません: {folder}")
         return None
-    out_dir = unique_dir(os.path.join(OUTPUT_DIR, f"{os.path.basename(os.path.normpath(folder))}_トリミング済"))
+    folder = os.path.normpath(folder)
+    parent_dir = os.path.dirname(folder)
+    out_dir = unique_dir(os.path.join(parent_dir, f"{os.path.basename(folder)}_トリミング済"))
     print(f"  フォルダ内の画像 {len(names)} 件を処理します: {folder}")
     print(f"  保存先フォルダ: {out_dir}")
     for name in names:
@@ -121,8 +132,8 @@ def process_path(path, threshold=DEFAULT_THRESHOLD):
 
 def interactive_loop():
     print("=== JPEGトリミング (ドラッグ&ドロップ待機モード) ===")
-    print(f"保存先フォルダ: {OUTPUT_DIR}")
-    print("フォルダをドロップした場合はその中に、フォルダ名のサブフォルダを作成して保存します。")
+    print("保存先: ファイルの場合は同じフォルダへ「ファイル名_トリミング済」として保存")
+    print("        フォルダの場合はその親フォルダに「フォルダ名_トリミング済」フォルダを作成して保存(重複時は連番)")
     print(".jpg ファイル、またはそれらを含むフォルダをこのウィンドウにドラッグ&ドロップして Enter を押してください。")
     print("終了するには何も入力せず Enter、または exit と入力してください。")
     print()
