@@ -16,9 +16,9 @@ Two ways to use:
    that picture resized/re-centered per the rule above (the image
    itself is kept, only its size and position are fixed), and the
    "図NN"/"QRコードNN" label is moved to the image's top-left corner.
-   The result is saved into Downloads as "<元のファイル名>_加工済み.pptx".
-   It then waits for the next file. Type nothing and press Enter (or
-   type exit) to quit.
+   The result is saved next to the source file as
+   "<元のファイル名>_加工済み.pptx". It then waits for the next file.
+   Type nothing and press Enter (or type exit) to quit.
 
 2) One-shot CLI mode (insert a new image into one slide):
    python place_image_centered.py "template.pptx" 1 "image.jpg" "output.pptx"
@@ -41,7 +41,6 @@ from PIL import Image
 
 LANDSCAPE_WIDTH_CM = 12.76
 PORTRAIT_HEIGHT_CM = 16.7
-DOWNLOADS_DIR = os.path.join(os.path.expanduser("~"), "Downloads")
 
 # textboxes like "図00", "図1", "QRコード1" are treated as the image's label
 LABEL_PATTERN = re.compile(r"^(図|QRコード)\s*[0-9０-９]+$")
@@ -135,8 +134,8 @@ def process_one(path):
         n = fix_existing_pictures(prs)
 
         base = os.path.splitext(os.path.basename(path))[0]
-        os.makedirs(DOWNLOADS_DIR, exist_ok=True)
-        output_path = os.path.join(DOWNLOADS_DIR, f"{base}_加工済み.pptx")
+        output_dir = os.path.dirname(os.path.abspath(path))
+        output_path = os.path.join(output_dir, f"{base}_加工済み.pptx")
         prs.save(output_path)
 
         print(f"  {n}枚の画像を調整しました")
@@ -149,7 +148,7 @@ def process_one(path):
 
 def interactive_loop():
     print("=== PDF画像調整 (ドラッグ&ドロップ待機モード) ===")
-    print(f"保存先フォルダ: {DOWNLOADS_DIR}")
+    print("保存先フォルダ: ドラッグしたファイルと同じフォルダ")
     print(".pptx ファイルをこのウィンドウにドラッグ&ドロップして Enter を押してください。")
     print("終了するには何も入力せず Enter、または exit と入力してください。")
     print()
