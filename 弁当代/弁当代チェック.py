@@ -80,7 +80,16 @@ def main():
     url_lookup      = {norm(k): v for k, v in url_map.items()}       # 照合用（「店」除去済みキー→url）
     category_lookup = {norm(k): v for k, v in category_map.items()}  # 照合用（「店」除去済みキー→区分）
 
-    target_ym = simpledialog.askstring("入力", "抽出する年月を入力してください\n（例: 202604）", parent=root)
+    now = datetime.now()
+    if now.month == 1:
+        default_ym = f"{now.year - 1}12"
+    else:
+        default_ym = f"{now.year}{now.month - 1:02d}"
+
+    target_ym = simpledialog.askstring(
+        "入力", "抽出する年月を入力してください\n（例: 202604）",
+        initialvalue=default_ym, parent=root
+    )
     if not target_ym: return
 
     folder_path = filedialog.askdirectory(title="エクセルがあるフォルダを選択してください")

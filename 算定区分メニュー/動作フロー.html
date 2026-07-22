@@ -1,0 +1,126 @@
+<style>
+  :root {
+    --bg: #eef2f0; --surface: #ffffff; --surface-2: #f4f7f5;
+    --ink: #1c2624; --ink-soft: #4b5a57; --ink-faint: #7c8985;
+    --rule: #d2dad6; --rule-strong: #b6c2bd;
+    --accent: #2f6f63; --accent-soft: #dceae6;
+    --warn: #a3611f; --warn-soft: #f4e4d3;
+    --shadow: 0 1px 2px rgba(28, 38, 36, 0.06), 0 8px 24px rgba(28, 38, 36, 0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12181a; --surface: #1b2325; --surface-2: #202a2c; --ink: #e7eeec;
+      --ink-soft: #a9b7b3; --ink-faint: #798683; --rule: #2b3638; --rule-strong: #3a4749;
+      --accent: #62c2ac; --accent-soft: #1e3733;
+      --warn: #e2a466; --warn-soft: #3a2b18;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12181a; --surface: #1b2325; --surface-2: #202a2c; --ink: #e7eeec;
+    --ink-soft: #a9b7b3; --ink-faint: #798683; --rule: #2b3638; --rule-strong: #3a4749;
+    --accent: #62c2ac; --accent-soft: #1e3733;
+    --warn: #e2a466; --warn-soft: #3a2b18;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #eef2f0; --surface: #ffffff; --surface-2: #f4f7f5; --ink: #1c2624;
+    --ink-soft: #4b5a57; --ink-faint: #7c8985; --rule: #d2dad6; --rule-strong: #b6c2bd;
+    --accent: #2f6f63; --accent-soft: #dceae6;
+    --warn: #a3611f; --warn-soft: #f4e4d3;
+    --shadow: 0 1px 2px rgba(28, 38, 36, 0.06), 0 8px 24px rgba(28, 38, 36, 0.05);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", "Noto Sans JP", sans-serif;
+    line-height: 1.75; -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 820px; margin: 0 auto; padding: 56px 24px 96px; }
+  .eyebrow {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.14em; color: var(--accent);
+    text-transform: uppercase; margin: 0 0 10px;
+  }
+  h1 { font-size: clamp(24px, 4vw, 32px); font-weight: 800; margin: 0 0 8px; letter-spacing: 0.01em; text-wrap: balance; }
+  .path {
+    font-family: "Cascadia Code", "Consolas", ui-monospace, monospace; font-size: 12.5px;
+    color: var(--ink-soft); background: var(--surface-2); border: 1px solid var(--rule);
+    border-radius: 6px; padding: 3px 8px; display: inline-block; word-break: break-all;
+  }
+  .lede { margin: 18px 0 0; color: var(--ink-soft); font-size: 15.5px; max-width: 64ch; }
+  header.top { border-bottom: 1px solid var(--rule); padding-bottom: 28px; margin-bottom: 40px; }
+  .diagram-frame {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 20px 18px 14px;
+  }
+  .diagram-scroll { overflow-x: auto; }
+  .diagram-scroll pre.mermaid { margin: 0; min-width: 520px; }
+  .diagram-caption { font-size: 12.5px; color: var(--ink-faint); margin: 10px 2px 0; }
+  table.spec {
+    width: 100%; border-collapse: collapse; font-size: 14px; background: var(--surface);
+    border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow);
+    margin-top: 32px;
+  }
+  table.spec th {
+    text-align: left; font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700; padding: 10px 14px; background: var(--surface-2);
+    border-bottom: 1px solid var(--rule);
+  }
+  table.spec td { padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  table.spec tr:last-child td { border-bottom: none; }
+  table.spec code {
+    font-family: "Cascadia Code", "Consolas", ui-monospace, monospace; font-size: 12px;
+    background: var(--surface-2); border: 1px solid var(--rule); border-radius: 4px; padding: 1px 5px;
+  }
+  footer.foot { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--rule); font-size: 12.5px; color: var(--ink-faint); }
+</style>
+
+<div class="page">
+
+  <header class="top">
+    <p class="eyebrow">動作フロー解説</p>
+    <h1>算定区分メニュー 動作フロー</h1>
+    <p class="path">算定区分メニュー\メニュー.py</p>
+    <p class="lede">
+      「算定区分CSVダウンロード」と「算定区分後工程一括」の2つのexeを、ボタン1つで起動するだけのシンプルなランチャー。
+    </p>
+  </header>
+
+  <div class="diagram-frame">
+    <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    Start(["起動"]) --> Menu["メニュー画面を表示\n(①②のボタン＋終了ボタン)"]
+    Menu --> B1["① 算定区分CSVダウンロード"]
+    Menu --> B2["② 算定区分後工程一括"]
+    Menu --> B3["終了"]
+    B1 --> Check1{"同じフォルダに\n算定区分CSVダウンロード.exeが\nあるか"}
+    Check1 -- ない --> Err1["エラーダイアログを表示\n(メニューは継続)"]
+    Check1 -- ある --> Run1["別プロセスとして起動\n(メニューはそのまま残る)"]
+    B2 --> Check2{"同じフォルダに\n算定区分後工程一括.exeが\nあるか"}
+    Check2 -- ない --> Err2["エラーダイアログを表示\n(メニューは継続)"]
+    Check2 -- ある --> Run2["別プロセスとして起動\n(メニューはそのまま残る)"]
+    B3 --> End(["ウィンドウを閉じる"])
+</pre>
+    </div>
+    <p class="diagram-caption">exeはメニュー本体(またはこの.py)と同じフォルダに置いておく必要がある。起動後もメニュー画面は閉じず、続けて別の処理を起動できる。</p>
+  </div>
+
+  <table class="spec">
+    <thead><tr><th style="width:30%">ボタン</th><th>呼び出すexe</th></tr></thead>
+    <tbody>
+      <tr><td>① 算定区分CSVダウンロード</td><td><code>算定区分CSVダウンロード.exe</code>(算定区分ダウンロード作業フォルダの成果物)</td></tr>
+      <tr><td>② 算定区分後工程一括</td><td><code>算定区分後工程一括.exe</code>(算定区分後工程分フォルダの成果物)</td></tr>
+    </tbody>
+  </table>
+
+  <footer class="foot">
+    exe化してPyInstallerで配布する運用のため、<code>sys.frozen</code> の有無でメニュー自身の実行フォルダを判定している(配布フォルダ配下に3つのexeをまとめて置く構成)。
+  </footer>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>

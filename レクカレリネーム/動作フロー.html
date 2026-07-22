@@ -1,0 +1,160 @@
+<style>
+  :root {
+    --bg: #eef2f0; --surface: #ffffff; --surface-2: #f4f7f5;
+    --ink: #1c2624; --ink-soft: #4b5a57; --ink-faint: #7c8985;
+    --rule: #d2dad6; --rule-strong: #b6c2bd;
+    --accent: #2f6f63; --accent-soft: #dceae6;
+    --warn: #a3611f; --warn-soft: #f4e4d3;
+    --danger: #a23b3b; --danger-soft: #f3dede;
+    --shadow: 0 1px 2px rgba(28, 38, 36, 0.06), 0 8px 24px rgba(28, 38, 36, 0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12181a; --surface: #1b2325; --surface-2: #202a2c; --ink: #e7eeec;
+      --ink-soft: #a9b7b3; --ink-faint: #798683; --rule: #2b3638; --rule-strong: #3a4749;
+      --accent: #62c2ac; --accent-soft: #1e3733;
+      --warn: #e2a466; --warn-soft: #3a2b18;
+      --danger: #e08787; --danger-soft: #3a2020;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12181a; --surface: #1b2325; --surface-2: #202a2c; --ink: #e7eeec;
+    --ink-soft: #a9b7b3; --ink-faint: #798683; --rule: #2b3638; --rule-strong: #3a4749;
+    --accent: #62c2ac; --accent-soft: #1e3733;
+    --warn: #e2a466; --warn-soft: #3a2b18;
+    --danger: #e08787; --danger-soft: #3a2020;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #eef2f0; --surface: #ffffff; --surface-2: #f4f7f5; --ink: #1c2624;
+    --ink-soft: #4b5a57; --ink-faint: #7c8985; --rule: #d2dad6; --rule-strong: #b6c2bd;
+    --accent: #2f6f63; --accent-soft: #dceae6;
+    --warn: #a3611f; --warn-soft: #f4e4d3;
+    --danger: #a23b3b; --danger-soft: #f3dede;
+    --shadow: 0 1px 2px rgba(28, 38, 36, 0.06), 0 8px 24px rgba(28, 38, 36, 0.05);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", "Noto Sans JP", sans-serif;
+    line-height: 1.75; -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 880px; margin: 0 auto; padding: 56px 24px 96px; }
+  .eyebrow {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.14em; color: var(--accent);
+    text-transform: uppercase; margin: 0 0 10px;
+  }
+  h1 { font-size: clamp(24px, 4vw, 32px); font-weight: 800; margin: 0 0 8px; letter-spacing: 0.01em; text-wrap: balance; }
+  .path {
+    font-family: "Cascadia Code", "Consolas", ui-monospace, monospace; font-size: 12.5px;
+    color: var(--ink-soft); background: var(--surface-2); border: 1px solid var(--rule);
+    border-radius: 6px; padding: 3px 8px; display: inline-block; word-break: break-all;
+  }
+  .lede { margin: 18px 0 0; color: var(--ink-soft); font-size: 15.5px; max-width: 64ch; }
+  header.top { border-bottom: 1px solid var(--rule); padding-bottom: 28px; margin-bottom: 44px; }
+  .toc { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .toc a {
+    font-size: 12.5px; font-weight: 700; color: var(--accent); text-decoration: none;
+    border: 1px solid var(--rule); background: var(--surface); padding: 5px 11px; border-radius: 999px;
+  }
+  section.diagram-section { margin: 40px 0; }
+  h3.diagram-title { font-size: 16px; font-weight: 700; margin: 0 0 4px; }
+  p.diagram-sub { color: var(--ink-soft); font-size: 14px; margin: 0 0 16px; max-width: 66ch; }
+  .diagram-frame {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 20px 18px 14px;
+  }
+  .diagram-scroll { overflow-x: auto; }
+  .diagram-scroll pre.mermaid { margin: 0; min-width: 600px; }
+  .diagram-caption { font-size: 12.5px; color: var(--ink-faint); margin: 10px 2px 0; }
+  .note {
+    background: var(--warn-soft); color: var(--warn); border-radius: 8px; padding: 10px 14px;
+    font-size: 13.5px; margin: 12px 0 0; max-width: 68ch; line-height: 1.65;
+  }
+  footer.foot { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--rule); font-size: 12.5px; color: var(--ink-faint); }
+</style>
+
+<div class="page">
+
+  <header class="top">
+    <p class="eyebrow">動作フロー解説</p>
+    <h1>レクカレrename_add_area 動作フロー</h1>
+    <p class="path">レクカレリネーム\レクカレrename_add_area.py</p>
+    <p class="lede">
+      フォルダ内の画像ファイルを店舗リストと照合し、ファイル名の先頭にエリア名を自動で付けてリネームするツール。
+      自動判定できないファイルは、検索ボックス付きのダイアログで手動選択する。
+    </p>
+    <nav class="toc">
+      <a href="#overview">全体の流れ</a>
+      <a href="#detail">自動判定ロジック</a>
+    </nav>
+  </header>
+
+  <section class="diagram-section" id="overview">
+    <h3 class="diagram-title">全体の流れ</h3>
+    <p class="diagram-sub">店舗リスト読込み〜フォルダ選択〜自動/手動判定〜リネーム実行までの流れ。</p>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    Start(["起動"]) --> Load["店舗リストExcelを読み込み\n(店舗名・区分の対応表)"]
+    Load --> LoadCheck{"読み込めたか"}
+    LoadCheck -- いいえ --> ErrEnd(["エラー表示して終了"])
+    LoadCheck -- はい --> SelectFolder["画像が入っているフォルダを選択"]
+    SelectFolder --> FolderCheck{"選択したか"}
+    FolderCheck -- キャンセル --> End1(["終了"])
+    FolderCheck -- はい --> Classify["フォルダ内の全ファイルを判定\n(下図「自動判定ロジック」参照)"]
+    Classify --> NeedConfirm{"手動確認が\n必要なファイルがあるか"}
+    NeedConfirm -- なし --> Apply
+    NeedConfirm -- あり --> Dialog["1件ずつ店舗選択ダイアログを表示\n(店舗名・区分で検索して選択)"]
+    Dialog --> Choice{"ボタンの選択"}
+    Choice -- 決定 --> Resolved["選んだ店舗のエリアを採用"]
+    Choice -- この回はスキップ --> Skipped["このファイルはスキップ"]
+    Choice -- 戻る --> SelectFolder
+    Choice -- プログラム中止 --> Abort(["フォルダを開いて強制終了"])
+    Resolved --> NextConfirm{"確認対象が\nまだあるか"}
+    Skipped --> NextConfirm
+    NextConfirm -- あり --> Dialog
+    NextConfirm -- なし --> Apply["自動判定＋手動確認の結果から\nリネーム計画を作成(名前が重複するものは除外)"]
+    Apply --> HasRename{"実行する\nリネームがあるか"}
+    HasRename -- あり --> DoRename["進捗バー付きでリネームを実行\n(いったん仮名にしてから確定名へ変更)"]
+    HasRename -- なし --> Result
+    DoRename --> Result["結果(リネーム件数／スキップ件数／\n重複で除外した件数)をダイアログ表示"]
+</pre>
+      </div>
+      <p class="diagram-caption">「戻る」を押すとフォルダ選択からやり直せる。「プログラム中止」は確認中のフォルダをExplorerで開いたうえで、保存せずに強制終了する。</p>
+    </div>
+  </section>
+
+  <section class="diagram-section" id="detail">
+    <h3 class="diagram-title">自動判定ロジック(classify_files)</h3>
+    <p class="diagram-sub">上図「全ファイルを判定」の中身。ファイル名の先頭番号と店舗リストの番号を突き合わせて、エリアを一意に絞り込めるかを判定する。</p>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    A["ファイル名を解析\n(先頭の数字＋残りの文字列)"] --> B{"先頭が\n数字で始まるか"}
+    B -- いいえ --> Manual(["手動確認リストへ"])
+    B -- はい --> C["番号を3桁ゼロ埋めに変換(num3)"]
+    C --> D["店舗リストから\n同じnum3の店舗をすべて抽出"]
+    D --> E["各店舗名の先頭コード(GH/KM等)を除いた地名部分が\nファイル名の地名部分に含まれるか判定"]
+    E --> F{"一致した店舗の「区分」が\n何種類あるか"}
+    F -- 1種類 --> Auto(["自動判定OK"])
+    F -- "0種類 または 2種類以上" --> Manual
+</pre>
+      </div>
+      <p class="diagram-caption">全角半角の表記ゆれや「店」の有無は正規化して吸収するが、番号が一致しても地名の一致先が複数(または0件)の場合は手動確認に回る。</p>
+    </div>
+  </section>
+
+  <footer class="foot">
+    店舗リストの参照先は <code>C:\Users\owner\Desktop\works\保管書類\店舗リスト\table_HHHL共通店舗一覧m.xlsm</code> 固定(コード内にパス直書き)。
+  </footer>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>

@@ -464,7 +464,7 @@ class App(BaseTk):
         self._set_pdf(path)
 
     def _choose_pdf(self):
-        path = filedialog.askopenfilename(filetypes=[("PDFファイル", "*.pdf")])
+        path = filedialog.askopenfilename(title="日報PDF(欠席時対応記録票)を開く", filetypes=[("PDFファイル", "*.pdf")])
         if path:
             self._set_pdf(path)
 

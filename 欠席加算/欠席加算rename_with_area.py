@@ -18,7 +18,7 @@ def select_target_dir() -> Path | None:
     root = tk.Tk()
     root.withdraw()
     root.attributes("-topmost", True)
-    selected = filedialog.askdirectory(title="対象フォルダを選択してください")
+    selected = filedialog.askdirectory(title="リネームする日報PDF(欠席時対応記録票)のフォルダを選択してください")
     root.destroy()
     if not selected:
         return None

@@ -314,7 +314,7 @@ def main():
     while True:
         print("[5/7] フォルダ選択ダイアログを表示します(画面裏に隠れていないか確認してください)", flush=True)
         root.attributes("-topmost", True)
-        folder = filedialog.askdirectory(title="画像が入っているフォルダを選択してください", parent=root)
+        folder = filedialog.askdirectory(title="店舗のレクカレ画像が入ったフォルダを選択して下さい", parent=root)
         root.attributes("-topmost", False)
         print(f"[6/7] 選択されたフォルダ: {folder!r}", flush=True)
         if not folder:
