@@ -1,0 +1,304 @@
+<style>
+  :root {
+    --bg: #eef2f0; --surface: #ffffff; --surface-2: #f4f7f5;
+    --ink: #1c2624; --ink-soft: #4b5a57; --ink-faint: #7c8985;
+    --rule: #d2dad6; --rule-strong: #b6c2bd;
+    --accent: #2f6f63; --accent-soft: #dceae6;
+    --warn: #a3611f; --warn-soft: #f4e4d3;
+    --danger: #a23b3b; --danger-soft: #f3dede;
+    --good: #2e7d46; --good-soft: #dceedf;
+    --shadow: 0 1px 2px rgba(28, 38, 36, 0.06), 0 8px 24px rgba(28, 38, 36, 0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12181a; --surface: #1b2325; --surface-2: #202a2c; --ink: #e7eeec;
+      --ink-soft: #a9b7b3; --ink-faint: #798683; --rule: #2b3638; --rule-strong: #3a4749;
+      --accent: #62c2ac; --accent-soft: #1e3733;
+      --warn: #e2a466; --warn-soft: #3a2b18;
+      --danger: #e08787; --danger-soft: #3a2020;
+      --good: #7fcb93; --good-soft: #1e3324;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12181a; --surface: #1b2325; --surface-2: #202a2c; --ink: #e7eeec;
+    --ink-soft: #a9b7b3; --ink-faint: #798683; --rule: #2b3638; --rule-strong: #3a4749;
+    --accent: #62c2ac; --accent-soft: #1e3733;
+    --warn: #e2a466; --warn-soft: #3a2b18;
+    --danger: #e08787; --danger-soft: #3a2020;
+    --good: #7fcb93; --good-soft: #1e3324;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #eef2f0; --surface: #ffffff; --surface-2: #f4f7f5; --ink: #1c2624;
+    --ink-soft: #4b5a57; --ink-faint: #7c8985; --rule: #d2dad6; --rule-strong: #b6c2bd;
+    --accent: #2f6f63; --accent-soft: #dceae6;
+    --warn: #a3611f; --warn-soft: #f4e4d3;
+    --danger: #a23b3b; --danger-soft: #f3dede;
+    --good: #2e7d46; --good-soft: #dceedf;
+    --shadow: 0 1px 2px rgba(28, 38, 36, 0.06), 0 8px 24px rgba(28, 38, 36, 0.05);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", "Noto Sans JP", sans-serif;
+    line-height: 1.75; -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 900px; margin: 0 auto; padding: 56px 24px 96px; }
+  .eyebrow {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.14em; color: var(--accent);
+    text-transform: uppercase; margin: 0 0 10px;
+  }
+  h1 { font-size: clamp(24px, 4vw, 32px); font-weight: 800; margin: 0 0 8px; letter-spacing: 0.01em; text-wrap: balance; }
+  .path {
+    font-family: "Cascadia Code", "Consolas", ui-monospace, monospace; font-size: 12.5px;
+    color: var(--ink-soft); background: var(--surface-2); border: 1px solid var(--rule);
+    border-radius: 6px; padding: 3px 8px; display: inline-block; word-break: break-all;
+  }
+  .lede { margin: 18px 0 0; color: var(--ink-soft); font-size: 15.5px; max-width: 66ch; }
+  header.top { border-bottom: 1px solid var(--rule); padding-bottom: 28px; margin-bottom: 44px; }
+  .toc { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .toc a {
+    font-size: 12.5px; font-weight: 700; color: var(--accent); text-decoration: none;
+    border: 1px solid var(--rule); background: var(--surface); padding: 5px 11px; border-radius: 999px;
+  }
+  .tool-block { margin: 60px 0; }
+  .tool-block:first-of-type { margin-top: 0; }
+  .tool-head { margin-bottom: 22px; }
+  .tool-num { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); margin: 0 0 6px; }
+  .tool-title { font-size: 21px; font-weight: 700; margin: 0 0 8px; }
+  .tool-desc { color: var(--ink-soft); font-size: 14.5px; max-width: 66ch; margin: 0; }
+  section.diagram-section { margin: 28px 0; }
+  h4.diagram-title { font-size: 14.5px; font-weight: 700; margin: 0 0 12px; color: var(--ink); }
+  .diagram-frame {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 20px 18px 14px;
+  }
+  .diagram-scroll { overflow-x: auto; }
+  .diagram-scroll pre.mermaid { margin: 0; min-width: 560px; }
+  .diagram-caption { font-size: 12.5px; color: var(--ink-faint); margin: 10px 2px 0; }
+  .note {
+    background: var(--warn-soft); color: var(--warn); border-radius: 8px; padding: 10px 14px;
+    font-size: 13.5px; margin: 12px 0 0; max-width: 68ch; line-height: 1.65;
+  }
+  table.rules {
+    width: 100%; border-collapse: collapse; font-size: 13.5px; background: var(--surface);
+    border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow);
+    margin-top: 14px;
+  }
+  table.rules th {
+    text-align: left; font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700; padding: 10px 14px; background: var(--surface-2);
+    border-bottom: 1px solid var(--rule);
+  }
+  table.rules td { padding: 9px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  table.rules tr:last-child td { border-bottom: none; }
+  table.rules code {
+    font-family: "Cascadia Code", "Consolas", ui-monospace, monospace; font-size: 12px;
+    background: var(--surface-2); border: 1px solid var(--rule); border-radius: 4px; padding: 1px 5px;
+  }
+  .pill {
+    display: inline-block; font-weight: 700; font-size: 12px; padding: 2px 9px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent);
+  }
+  .pill.alert { background: #fff3b0; color: #7a5c00; }
+  .pill.blank { background: var(--good-soft); color: var(--good); }
+  hr.divider { border: none; border-top: 1px solid var(--rule); margin: 56px 0 0; }
+  footer.foot { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--rule); font-size: 12.5px; color: var(--ink-faint); }
+</style>
+
+<div class="page">
+
+  <header class="top">
+    <p class="eyebrow">動作フロー解説</p>
+    <h1>カウネット処理ツール一式 動作フロー</h1>
+    <p class="path">カウネット\カウネット_run_all.py</p>
+    <p class="lede">
+      3つのファイルで構成される一連の業務ツール。ランチャー画面から
+      「実績データのダウンロードと結合」→「コピペ用データの集計」の順に実行する想定。
+    </p>
+    <nav class="toc">
+      <a href="#launcher">起動ランチャー</a>
+      <a href="#step1">① 実績結合</a>
+      <a href="#step2">② 集計</a>
+    </nav>
+  </header>
+
+  <div class="tool-block" id="launcher">
+    <div class="tool-head">
+      <p class="tool-num">Entry point</p>
+      <h2 class="tool-title">カウネット_run_all.py(起動ランチャー)</h2>
+      <p class="tool-desc">常に最前面に表示される3ボタンのメニュー画面。①②はそれぞれ別モジュールの main() を呼ぶだけで、失敗してもメニューは閉じずエラーダイアログのみ表示する。</p>
+    </div>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    Start(["起動"]) --> Menu["メニュー画面\n(常に最前面表示)"]
+    Menu --> B1["1. 実績データのダウンロードと結合を実行"]
+    Menu --> B2["2. コピペ用データの集計を実行"]
+    Menu --> B3["3. アプリ終了"]
+    B1 --> M1["カウネット実績結合.main()\n(①へ)"]
+    B2 --> M2["カウネット集計.main()\n(②へ)"]
+    B3 --> End(["ウィンドウを閉じる"])
+    M1 -. 例外発生時 .-> Err1["エラーダイアログを表示\nメニューは継続"]
+    M2 -. 例外発生時 .-> Err2["エラーダイアログを表示\nメニューは継続"]
+</pre>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="tool-block" id="step1">
+    <div class="tool-head">
+      <p class="tool-num">Step 1</p>
+      <h2 class="tool-title">カウネット実績結合.py</h2>
+      <p class="tool-desc">複数のCSVを、ファイル名末尾の4桁から判定した口座番号を付けて1本のCSVに結合する。</p>
+    </div>
+    <section class="diagram-section">
+      <div class="diagram-frame">
+        <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    A(["「1. 実績データのダウンロードと結合」"]) --> B["保存済みの口座番号設定を読込み\n(初回は既定値で自動生成)"]
+    B --> C["末尾4桁 ⇔ 口座番号の\n設定ダイアログを表示"]
+    C --> D{"「設定完了して\nCSV選択へ」を押したか"}
+    D -- キャンセル --> End1(["中断"])
+    D -- はい --> E["設定を保存"]
+    E --> F["処理するCSVを複数選択"]
+    F --> G{"1件も\n選ばなかったか"}
+    G -- はい --> End1
+    G -- いいえ --> H["選んだCSVを1件ずつ処理"]
+    H --> I{"ファイル名の末尾4桁が\n設定と一致するか"}
+    I -- 一致しない --> Skip["そのファイルはスキップ"]
+    I -- 一致する --> J["CSV読込み(5行目から, cp932)"]
+    J --> K["最終行を削除"]
+    K --> L["「伝票タイプ」に\n「キャンセル」を含む行を削除"]
+    L --> M["口座番号列を追加"]
+    M --> Next["次のファイルへ"]
+    Skip --> Next
+    Next --> Check{"全ファイル\n処理済みか"}
+    Check -- いいえ --> H
+    Check -- はい --> N{"結合できた\nデータがあるか"}
+    N -- なし --> Warn["警告: 対象ファイルなし"]
+    N -- あり --> O["全データを結合"]
+    O --> P["Downloads\\カウネット中間データ.csv\nとして保存(cp932)"]
+    P --> Done(["完了メッセージを表示"])
+</pre>
+        </div>
+        <p class="diagram-caption">口座番号マッピングは Desktop\カウネット_電話_口座番号.json に保存され、次回起動時も引き継がれる。</p>
+      </div>
+    </section>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="tool-block" id="step2">
+    <div class="tool-head">
+      <p class="tool-num">Step 2</p>
+      <h2 class="tool-title">カウネット集計.py</h2>
+      <p class="tool-desc">①で作った中間データと店舗マスターを突き合わせ、伝票番号ごとに集計・整形してExcelに書き出す。</p>
+    </div>
+
+    <section class="diagram-section">
+      <h4 class="diagram-title">全体の流れ</h4>
+      <div class="diagram-frame">
+        <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    A(["「2. コピペ用データの集計を実行」"]) --> B["手順1: 中間データCSVを選択\n(Downloadsを初期表示)"]
+    B --> C{"選択したか"}
+    C -- キャンセル --> End1(["中断"])
+    C -- はい --> D["手順2: マスターExcelを選択\n(table_HHHL共通店舗一覧m)"]
+    D --> E{"選択したか"}
+    E -- キャンセル --> End1
+    E -- はい --> F["マスターの「リスト」シートから\n店舗名一覧を取得"]
+    F --> G["CSVを読込み、列名を整形"]
+    G --> H["伝票番号ごとに税込小計を合計\n→ 合計金額"]
+    H --> I["伝票番号ごとに代表商品名を選定\n(下図①参照)"]
+    I --> J["お届け先部署名を\n店番付き店舗名に変換\n(下図②参照)"]
+    J --> K["合計金額・取引先などの列を結合し\n電話番号→出荷日→伝票番号で並び替え"]
+    K --> L["Downloads\\カウネットコピペデータ.xlsx\nに保存"]
+    L --> M["電話番号ごとに背景色を交互に塗り\n「未登録」は黄色、「空欄」は紫系\n列幅を自動調整"]
+    M --> N{"「未登録」の\n行があったか"}
+    N -- あり --> O["警告付きの完了メッセージ"]
+    N -- なし --> P["完了メッセージ"]
+    O --> Q["保存したExcelを開く"]
+    P --> Q
+</pre>
+        </div>
+        <p class="diagram-caption">保存先のExcelがすでに開いている場合は「閉じてから再実行してください」という専用メッセージで中断する。</p>
+      </div>
+    </section>
+
+    <section class="diagram-section">
+      <h4 class="diagram-title">① 代表商品名の選定</h4>
+      <div class="diagram-frame">
+        <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    A["伝票番号でグループ化し\n税込小計の高い順に並べる"] --> B["先頭(金額最大)の商品名を取得"]
+    B --> C{"先頭が「少額受注配送料」\nかつ他にも商品があるか"}
+    C -- はい --> D["少額受注配送料以外で\n最も金額が高い商品名を採用"]
+    C -- いいえ --> E["先頭の商品名をそのまま採用"]
+    D --> F["商品名を整形\n(スペース区切りの先頭1〜2語)"]
+    E --> F
+    F --> G{"同じ伝票番号に\n商品が2件以上あるか"}
+    G -- はい --> H["末尾に「_他」を付与"]
+    G -- いいえ --> I["そのまま"]
+</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="diagram-section">
+      <h4 class="diagram-title">② お届け先部署名 → 店番付き店舗名 への変換</h4>
+      <div class="diagram-frame">
+        <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    A["お届け先部署名"] --> B{"空欄か"}
+    B -- はい --> C(["「空欄」(紫系セル)"])
+    B -- いいえ --> D{"「平出事務所」か"}
+    D -- はい --> E(["そのまま「平出事務所」"])
+    D -- いいえ --> F["「店」「グローバル」を削除\n全角英数字を半角に統一\n「前橋青葉」→「前橋青葉町」"]
+    F --> G["キーワードからプレフィックスを組立て\n(下表参照)"]
+    G --> H{"店名部分が\n空になったか"}
+    H -- はい --> C
+    H -- いいえ --> I["「プレフィックス+店名」を\nマスター一覧と正規化して照合"]
+    I --> J{"一致件数"}
+    J -- 1件 --> K(["マスターの「店番+店舗名」を採用"])
+    J -- "0件 or 2件以上" --> L(["「未登録」(黄色セル)"])
+</pre>
+        </div>
+      </div>
+      <table class="rules">
+        <thead><tr><th style="width:40%">部署名に含まれるキーワード</th><th>プレフィックス</th></tr></thead>
+        <tbody>
+          <tr><td>メソッド(キッズの有無を問わず)</td><td><code>KM</code></td></tr>
+          <tr><td>キッズ(メソッドなし)</td><td><code>K</code></td></tr>
+          <tr><td>パーク</td><td><code>P</code>(他と組み合わせ可: KP, KMPなど)</td></tr>
+          <tr><td>サカフル</td><td><code>SF</code></td></tr>
+          <tr><td>ナーシングホーム</td><td><code>NH</code>(「ホーム」より優先)</td></tr>
+          <tr><td>ホーム(グローバルホーム)</td><td><code>GH</code></td></tr>
+          <tr><td>ツリー</td><td><code>T</code></td></tr>
+        </tbody>
+      </table>
+      <p class="note">
+        例: 「グローバルキッズメソッド岩曽店」→ <code>KM岩曽</code> → マスター照合後「001KM岩曽」。
+        「グローバルキッズパークせんげん台店」→ <code>KPせんげん台</code> → 「001KPせんげん台」。
+      </p>
+    </section>
+  </div>
+
+  <footer class="foot">
+    ①→②の間に受け渡されるファイルは Downloads\カウネット中間データ.csv 固定。①を実行し直すと同じ名前で上書きされる。
+  </footer>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>

@@ -1,0 +1,411 @@
+<style>
+  :root {
+    --bg: #eef2f0;
+    --surface: #ffffff;
+    --surface-2: #f4f7f5;
+    --ink: #1c2624;
+    --ink-soft: #4b5a57;
+    --ink-faint: #7c8985;
+    --rule: #d2dad6;
+    --rule-strong: #b6c2bd;
+    --accent: #2f6f63;
+    --accent-ink: #ffffff;
+    --accent-soft: #dceae6;
+    --warn: #a3611f;
+    --warn-soft: #f4e4d3;
+    --danger: #a23b3b;
+    --danger-soft: #f3dede;
+    --good: #2e7d46;
+    --good-soft: #dceedf;
+    --shadow: 0 1px 2px rgba(28, 38, 36, 0.06), 0 8px 24px rgba(28, 38, 36, 0.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12181a;
+      --surface: #1b2325;
+      --surface-2: #202a2c;
+      --ink: #e7eeec;
+      --ink-soft: #a9b7b3;
+      --ink-faint: #798683;
+      --rule: #2b3638;
+      --rule-strong: #3a4749;
+      --accent: #62c2ac;
+      --accent-ink: #0d1a17;
+      --accent-soft: #1e3733;
+      --warn: #e2a466;
+      --warn-soft: #3a2b18;
+      --danger: #e08787;
+      --danger-soft: #3a2020;
+      --good: #7fcb93;
+      --good-soft: #1e3324;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12181a; --surface: #1b2325; --surface-2: #202a2c; --ink: #e7eeec;
+    --ink-soft: #a9b7b3; --ink-faint: #798683; --rule: #2b3638; --rule-strong: #3a4749;
+    --accent: #62c2ac; --accent-ink: #0d1a17; --accent-soft: #1e3733;
+    --warn: #e2a466; --warn-soft: #3a2b18; --danger: #e08787; --danger-soft: #3a2020;
+    --good: #7fcb93; --good-soft: #1e3324;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #eef2f0; --surface: #ffffff; --surface-2: #f4f7f5; --ink: #1c2624;
+    --ink-soft: #4b5a57; --ink-faint: #7c8985; --rule: #d2dad6; --rule-strong: #b6c2bd;
+    --accent: #2f6f63; --accent-ink: #ffffff; --accent-soft: #dceae6;
+    --warn: #a3611f; --warn-soft: #f4e4d3; --danger: #a23b3b; --danger-soft: #f3dede;
+    --good: #2e7d46; --good-soft: #dceedf;
+    --shadow: 0 1px 2px rgba(28, 38, 36, 0.06), 0 8px 24px rgba(28, 38, 36, 0.05);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", "Noto Sans JP", sans-serif;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin: 0 0 10px;
+  }
+
+  h1 {
+    font-size: clamp(26px, 4vw, 34px);
+    font-weight: 800;
+    margin: 0 0 8px;
+    letter-spacing: 0.01em;
+    text-wrap: balance;
+  }
+
+  .path {
+    font-family: "Cascadia Code", "Consolas", ui-monospace, monospace;
+    font-size: 13px;
+    color: var(--ink-soft);
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 3px 8px;
+    display: inline-block;
+    word-break: break-all;
+  }
+
+  .lede {
+    margin: 18px 0 0;
+    color: var(--ink-soft);
+    font-size: 15.5px;
+    max-width: 62ch;
+  }
+
+  header.top {
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 28px;
+    margin-bottom: 40px;
+  }
+
+  section {
+    margin: 48px 0;
+  }
+
+  h2 {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 4px;
+  }
+
+  h3 {
+    font-size: 21px;
+    font-weight: 700;
+    margin: 2px 0 12px;
+    letter-spacing: 0.005em;
+  }
+
+  .section-intro {
+    color: var(--ink-soft);
+    font-size: 15px;
+    max-width: 68ch;
+    margin: 0 0 22px;
+  }
+
+  .diagram-frame {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 20px 18px 14px;
+  }
+
+  .diagram-scroll {
+    overflow-x: auto;
+  }
+
+  .diagram-scroll pre.mermaid {
+    margin: 0;
+    min-width: 560px;
+  }
+
+  .diagram-caption {
+    font-size: 12.5px;
+    color: var(--ink-faint);
+    margin: 10px 2px 0;
+    letter-spacing: 0.01em;
+  }
+
+  table.map {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14.5px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  table.map th {
+    text-align: left;
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 700;
+    padding: 12px 16px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  table.map td {
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  table.map tr:last-child td { border-bottom: none; }
+
+  .panel-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 9px 3px 7px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .panel-tag.left { background: var(--warn-soft); color: var(--warn); }
+  .panel-tag.right { background: var(--accent-soft); color: var(--accent); }
+
+  .panel-tag .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+  }
+
+  .item-name {
+    font-weight: 700;
+  }
+
+  .item-desc {
+    color: var(--ink-soft);
+    font-size: 13.5px;
+    margin-top: 2px;
+  }
+
+  code.fn {
+    font-family: "Cascadia Code", "Consolas", ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+
+  .severity-key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 22px;
+    margin: 16px 0 0;
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  .severity-key span.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .severity-key .swatch {
+    width: 11px; height: 11px; border-radius: 3px;
+  }
+  .sw-good { background: var(--good); }
+  .sw-warn { background: var(--warn); }
+  .sw-danger { background: var(--danger); }
+
+  footer.note {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    font-size: 12.5px;
+    color: var(--ink-faint);
+  }
+</style>
+
+<div class="page">
+
+  <header class="top">
+    <p class="eyebrow">動作フロー解説</p>
+    <h1>欠席チェック君の動作フロー</h1>
+    <p class="path">欠席加算\codes\欠席加算\欠席加算比較チェック君_gui.py</p>
+    <p class="lede">
+      日報PDF(欠席時対応記録票)とHUGカレンダーの貼り付けテキストを突き合わせ、
+      欠席Ⅰ・欠席加算の食い違いや記入漏れの疑いを一覧化するツールの、
+      画面操作の流れと内部の比較ロジックをまとめたもの。
+    </p>
+  </header>
+
+  <section>
+    <h2>Step 1</h2>
+    <h3>操作の流れ</h3>
+    <p class="section-intro">
+      PDFを読み込んでからCSV保存までの、画面上で行う一連の操作。
+      新しいPDFを選び直すと、貼り付け欄・年月・範囲は毎回リセットされる。
+    </p>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    A(["起動\npython 欠席加算比較チェック君_gui.py"]) --> B["① PDFをドラッグ&amp;ドロップ／選択"]
+    B --> C["新しいPDFとして\n年月・範囲・貼り付け欄をリセット"]
+    C --> D["② HUGカレンダーの\nコピーテキストを貼り付け"]
+    D --> E["年・月を確認／入力"]
+    E --> F["対象範囲を選択\n1〜15日 ／ 16日〜月末"]
+    F --> G["③ 比較する を押す"]
+    G --> H{"PDFとテキスト\n両方そろっているか"}
+    H -- 不足 --> I["警告ダイアログを表示して中断"]
+    H -- そろっている --> J["内部処理へ\n(Step 2 参照)"]
+    J --> K["結果を左右パネルに表示"]
+    K --> L{"CSVに\n保存するか"}
+    L -- する --> M["④ 不一致リストをCSVで保存"]
+    L -- しない --> N(["確認終了"])
+    M --> N
+</pre>
+      </div>
+      <p class="diagram-caption">③「比較する」を押した時点で PDF が未選択、または貼り付け欄が空の場合は警告のみでここで止まる。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Step 2</h2>
+    <h3>比較のしくみ(内部処理)</h3>
+    <p class="section-intro">
+      「③ 比較する」を押した後、PDFの表とカレンダーテキストをそれぞれ解析し、
+      氏名＋欠席日をキーに突き合わせる。ここで生成された5種類の結果が、そのまま画面下部の2パネルに振り分けられる。
+    </p>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    P["PDFの表を全行抽出"] --> Q{"欠席加算欄の記号"}
+    Q -- "○ ／ 空欄" --> R["pdf_rows\n(加算対象行)"]
+    Q -- "✕ など" --> S["pdf_flag_map\nに記号＋行番号を保持"]
+    Q -- "空欄のみ" --> T["欠席加算欄が未記入の行"]
+    P --> U["受付日 &gt; 欠席日 を検出"] --> V["日付誤記の疑い"]
+    P --> W["氏名＋欠席日の重複を検出"] --> X["重複の疑い"]
+    Y["貼り付けテキストを解析"] --> Z["cal_rows\n(欠席Ⅰ一覧)"]
+    R --> AA["選択した日付範囲で絞り込み"]
+    Z --> AA
+    V --> AA
+    X --> AA
+    T --> AA
+    AA --> AB["氏名＋欠席日を正規化して突合"]
+    AB --> AC["一致"]
+    AB --> AD["日報のみ\n(HUG：記載なし)"]
+    AB --> AE["HUGのみ"]
+    AE --> AF["pdf_flag_map から\n記号・行番号を補完"]
+    AC --> AG{"必須項目に\n空欄があるか"}
+    AG -- あり --> AH["空欄あり\n(記入漏れの疑い)"]
+</pre>
+      </div>
+      <p class="diagram-caption">「HUGのみ」で見つかった行は、日報側に実際は「✕」等が書いてあることがあるため、記号と行番号を pdf_flag_map から補って表示する。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Step 3</h2>
+    <h3>結果はどのパネルに出るか</h3>
+    <p class="section-intro">
+      Step 2 で作られた5つのリストが、画面下部の左右どちらのテキスト欄に表示されるかの対応表。
+    </p>
+    <table class="map">
+      <thead>
+        <tr>
+          <th style="width:22%">表示先</th>
+          <th>内容</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="panel-tag left"><span class="dot"></span>左：不一致・日付誤記の疑い</span></td>
+          <td>
+            <div class="item-name">不一致(HUGと日報で欠席Ⅰ/欠席加算〇が食い違っている)</div>
+            <div class="item-desc">only_pdf ＋ only_cal を統合。only_cal 側は <code class="fn">pdf_flag_map</code> から実際の記号・行番号を補完</div>
+          </td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>
+            <div class="item-name">日付の誤記の疑い</div>
+            <div class="item-desc">〇の行のみが対象。受付日が欠席日より後になっている行</div>
+          </td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>
+            <div class="item-name">重複の疑い</div>
+            <div class="item-desc">PDF内で氏名＋欠席日が完全一致する行(記号を問わず全行が対象)</div>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="panel-tag right"><span class="dot"></span>右：一致しているが空欄がある</span></td>
+          <td>
+            <div class="item-name">空欄あり(記入漏れの疑い)</div>
+            <div class="item-desc">HUGと日報が一致している行のうち、受付日・続柄・欠席理由などの必須項目に空欄がある行</div>
+          </td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>
+            <div class="item-name">欠席加算欄が未記入(空欄)</div>
+            <div class="item-desc">PDF全行が対象。欠席加算欄そのものが空欄の行(計算上は○扱いのままだが、記入漏れ確認用に一覧化)</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer class="note">
+    ④ CSV保存の対象は「不一致」「日付の誤記の疑い」の2種類のみ(重複の疑い・空欄関連は含まれない)。
+  </footer>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>
