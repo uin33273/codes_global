@@ -290,7 +290,8 @@ def find_pdf_date_errors(pdf_path: str):
 
 
 def parse_calendar_text(text: str, month: int = None):
-    """カレンダー画面のコピペテキストから「欠席Ⅰ」(加算なし除く)を抽出"""
+    """カレンダー画面のコピペテキストから「欠席Ⅰ」を抽出。
+    通常の「欠席Ⅰ」はstatus='○'、「欠席Ⅰ（加算なし）」はstatus='✕'として区別する。"""
     lines = text.splitlines()
 
     def is_day_header(line):
@@ -334,9 +335,10 @@ def parse_calendar_text(text: str, month: int = None):
             state = "other"
             continue
 
-        if state == "absent1" and current_day is not None:
+        if current_day is not None and state in ("absent1", "absent1_nokasan"):
             date_label = f"{month}/{current_day}" if month else str(current_day)
-            results.append({"date": date_label, "name": s})
+            status = "○" if state == "absent1" else "✕"
+            results.append({"date": date_label, "name": s, "status": status})
 
     return results
 
@@ -377,8 +379,18 @@ class App(BaseTk):
     def _build_widgets(self):
         pad = {"padx": 10, "pady": 6}
 
+        # --- 上段(①②)と下段(結果)を上下にドラッグして高さ調整できるように分割 ---
+        main_paned = tk.PanedWindow(self, orient="vertical", sashrelief="raised", sashwidth=6)
+        main_paned.pack(fill="both", expand=True)
+
+        top_frame = ttk.Frame(main_paned)
+        main_paned.add(top_frame, height=360, minsize=200, stretch="always")
+
+        bottom_frame = ttk.Frame(main_paned)
+        main_paned.add(bottom_frame, minsize=150, stretch="always")
+
         # --- PDFエリア ---
-        frame_pdf = ttk.LabelFrame(self, text="① 欠席時対応記録票(日報PDF)")
+        frame_pdf = ttk.LabelFrame(top_frame, text="① 欠席時対応記録票(日報PDF)")
         frame_pdf.pack(fill="x", **pad)
 
         drop_text = "ここにPDFをドラッグ&ドロップ" if DND_AVAILABLE else "PDFファイルを選択してください"
@@ -393,8 +405,11 @@ class App(BaseTk):
 
         ttk.Button(frame_pdf, text="PDFを選択...", command=self._choose_pdf).pack(pady=(0, 10))
 
+        # --- 実行ボタン(bottomに先取りしてpackし、カレンダー欄を縮めても隠れないようにする) ---
+        ttk.Button(top_frame, text="③ 比較する", command=self._run_compare).pack(side="bottom", pady=6)
+
         # --- カレンダーテキストエリア ---
-        frame_cal = ttk.LabelFrame(self, text="② HUGカレンダー画面のテキストを貼り付け(全選択コピペでOK)")
+        frame_cal = ttk.LabelFrame(top_frame, text="② HUGカレンダー画面のテキストを貼り付け(全選択コピペでOK)")
         frame_cal.pack(fill="both", expand=True, **pad)
 
         top_row = ttk.Frame(frame_cal)
@@ -412,23 +427,27 @@ class App(BaseTk):
         range_row = ttk.Frame(frame_cal)
         range_row.pack(fill="x", padx=10, pady=(6, 0))
         tk.Label(range_row, text="対象日付範囲:").pack(side="left")
-        self.range_var = tk.StringVar(value="first_half")
+        self.range_var = tk.StringVar(value="first_third")
         ttk.Radiobutton(
-            range_row, text="1日〜15日", variable=self.range_var, value="first_half"
+            range_row, text="1日〜15日", variable=self.range_var, value="first_third"
         ).pack(side="left", padx=(6, 0))
         ttk.Radiobutton(
-            range_row, text="16日〜月末", variable=self.range_var, value="second_half"
+            range_row, text="16日〜25日", variable=self.range_var, value="second_third"
+        ).pack(side="left", padx=(10, 0))
+        ttk.Radiobutton(
+            range_row, text="26日〜月末", variable=self.range_var, value="third_third"
         ).pack(side="left", padx=(10, 0))
 
-        self.cal_text = tk.Text(frame_cal, height=14, wrap="none")
+        self.cal_text = tk.Text(frame_cal, height=13, wrap="none")
         self.cal_text.pack(fill="both", expand=True, padx=10, pady=10)
+        self._add_edit_context_menu(self.cal_text)
 
-        # --- 実行ボタン ---
-        ttk.Button(self, text="③ 比較する", command=self._run_compare).pack(pady=6)
-
-        # --- 結果表示エリア(左右にドラッグで幅調整できる分割) ---
-        frame_result = ttk.LabelFrame(self, text="結果")
+        # --- 結果表示エリア(左右にドラッグで幅調整、上下(本エリアの高さ)もドラッグで調整可能) ---
+        frame_result = ttk.LabelFrame(bottom_frame, text="結果")
         frame_result.pack(fill="both", expand=True, **pad)
+
+        # 保存ボタンをbottomに先取りしてpackし、結果欄を縮めても隠れないようにする
+        ttk.Button(frame_result, text="不一致リストをCSVで保存...", command=self._save_csv).pack(side="bottom", pady=(0, 10))
 
         paned = tk.PanedWindow(frame_result, orient="horizontal", sashrelief="raised", sashwidth=6)
         paned.pack(fill="both", expand=True, padx=10, pady=(10, 4))
@@ -442,6 +461,7 @@ class App(BaseTk):
         self.result_text.config(yscrollcommand=left_scroll.set)
         left_scroll.pack(side="right", fill="y")
         self.result_text.pack(side="left", fill="both", expand=True)
+        self._add_copy_context_menu(self.result_text)
         paned.add(left_frame, stretch="always")
 
         right_frame = ttk.Frame(paned)
@@ -453,9 +473,44 @@ class App(BaseTk):
         self.blank_text.config(yscrollcommand=right_scroll.set)
         right_scroll.pack(side="right", fill="y")
         self.blank_text.pack(side="left", fill="both", expand=True)
+        self._add_copy_context_menu(self.blank_text)
         paned.add(right_frame, stretch="always")
 
-        ttk.Button(frame_result, text="不一致リストをCSVで保存...", command=self._save_csv).pack(pady=(0, 10))
+    # ---------- 右クリックでコピーできるようにする ----------
+
+    def _add_copy_context_menu(self, text_widget):
+        menu = tk.Menu(text_widget, tearoff=0)
+        menu.add_command(label="コピー", command=lambda: self._copy_selection(text_widget))
+        menu.add_command(label="すべて選択", command=lambda: self._select_all_text(text_widget))
+
+        def show_menu(event):
+            menu.tk_popup(event.x_root, event.y_root)
+
+        text_widget.bind("<Button-3>", show_menu)
+
+    def _copy_selection(self, text_widget):
+        try:
+            selected = text_widget.get("sel.first", "sel.last")
+        except tk.TclError:
+            return
+        self.clipboard_clear()
+        self.clipboard_append(selected)
+
+    def _select_all_text(self, text_widget):
+        text_widget.tag_add("sel", "1.0", "end")
+
+    def _add_edit_context_menu(self, text_widget):
+        menu = tk.Menu(text_widget, tearoff=0)
+        menu.add_command(label="切り取り", command=lambda: text_widget.event_generate("<<Cut>>"))
+        menu.add_command(label="コピー", command=lambda: text_widget.event_generate("<<Copy>>"))
+        menu.add_command(label="貼り付け", command=lambda: text_widget.event_generate("<<Paste>>"))
+        menu.add_separator()
+        menu.add_command(label="すべて選択", command=lambda: self._select_all_text(text_widget))
+
+        def show_menu(event):
+            menu.tk_popup(event.x_root, event.y_root)
+
+        text_widget.bind("<Button-3>", show_menu)
 
     # ---------- イベント ----------
 
@@ -476,13 +531,12 @@ class App(BaseTk):
         self.pdf_label.config(text=f"選択済み: {path}")
 
         # 新しいPDFが来たら、前回分の貼り付けテキストと結果表示をクリアして
-        # 新しい情報の受付待ち状態に戻す(年月欄は「今」で埋め直し、範囲は前半に戻す)
+        # 新しい情報の受付待ち状態に戻す(年月欄は「今」で埋め直す。対象日付範囲は維持する)
         self.cal_text.delete("1.0", "end")
         self.year_entry.delete(0, "end")
         self.year_entry.insert(0, str(datetime.now().year))
         self.month_entry.delete(0, "end")
         self.month_entry.insert(0, str(datetime.now().month))
-        self.range_var.set("first_half")
         self.mismatch_rows = []
         self.result_text.config(state="normal")
         self.result_text.delete("1.0", "end")
@@ -516,33 +570,50 @@ class App(BaseTk):
             messagebox.showerror("PDF読み込みエラー", str(e))
             return
 
-        cal_rows = parse_calendar_text(cal_text, month)
+        cal_rows_all = parse_calendar_text(cal_text, month)
+        cal_rows = [r for r in cal_rows_all if r.get("status") == "○"]
+        cal_nokasan_rows = [r for r in cal_rows_all if r.get("status") == "✕"]
 
         if not pdf_rows:
             messagebox.showwarning("確認", "PDFから「欠席加算=○」の行が見つかりませんでした。フォーマットをご確認ください。")
-        if not cal_rows:
+        if not cal_rows_all:
             messagebox.showwarning("確認", "貼り付けたテキストから「欠席Ⅰ」が見つかりませんでした。コピー範囲・書式をご確認ください。")
 
-        # 対象日付範囲(1日〜15日 / 16日〜月末)で絞り込む。月末は年月から算出する。
-        is_first_half = self.range_var.get() == "first_half"
+        # 対象日付範囲(1日〜15日 / 16日〜25日 / 26日〜月末)で絞り込む。月末は年月から算出する。
+        range_choice = self.range_var.get()
         if year and month:
             last_day = calendar_mod.monthrange(year, month)[1]
         else:
             last_day = 31  # 年月が未入力/不正な場合は安全側(31日まで)で判定
 
+        if range_choice == "first_third":
+            range_start, range_end = 1, 15
+        elif range_choice == "second_third":
+            range_start, range_end = 16, 25
+        else:
+            range_start, range_end = 26, last_day
+
         def in_range(date_str):
             day = extract_day(date_str)
             if day is None:
                 return True  # 日にちが読み取れない行はフィルタせずそのまま残す
-            return (1 <= day <= 15) if is_first_half else (16 <= day <= last_day)
+            return range_start <= day <= range_end
 
         pdf_rows = [r for r in pdf_rows if in_range(r["date"])]
         cal_rows = [r for r in cal_rows if in_range(r["date"])]
+        cal_nokasan_rows = [r for r in cal_nokasan_rows if in_range(r["date"])]
         date_errors = [r for r in date_errors if in_range(r["date"])]  # 欠席日を基準に範囲を揃える
         pdf_duplicates = [d for d in pdf_duplicates if in_range(d["date"])]
         pdf_blank_flag_rows = [r for r in pdf_blank_flag_rows if in_range(r["date"])]
 
         matched, only_pdf, only_cal = compare_rows(pdf_rows, cal_rows)
+
+        # HUGで「欠席Ⅰ（加算なし)」(=✕)となっている人のキー(日付+氏名)。
+        # only_pdf(PDFには〇があるがHUGの「欠席Ⅰ」には無い人)がこれに該当する場合、
+        # 「HUGに記載が無い」のではなく「HUGでは✕(加算なし)扱い」なので表示を差し替える
+        nokasan_keys = {
+            (normalize_date(r["date"]), normalize_name(r["name"])) for r in cal_nokasan_rows
+        }
 
         # 「HUG(カレンダー)」「日報(PDF)」それぞれに欠席Ⅰ/欠席加算〇があるかを
         # date・氏名ごとにまとめ、日付順に並べる(日報側にPDFの行番号・空欄有無があれば付ける)
@@ -552,7 +623,7 @@ class App(BaseTk):
                     "欠席チェック不一致",
                     format_mmdd(r["date"], month),
                     r["name"],
-                    "記載なし",
+                    "✕" if (normalize_date(r["date"]), normalize_name(r["name"])) in nokasan_keys else "記載なし",
                     "〇",
                     r.get("row_no", ""),
                     "",
@@ -601,27 +672,51 @@ class App(BaseTk):
         ]
         matched_blank_rows.sort(key=lambda x: (x[2], x[0]))
 
+        # 不一致(only_pdf)だが、日報側の〇の行に空欄がある(記入漏れの疑い)ものも右側にまとめる
+        only_pdf_blank_rows = [
+            (r["name"], r.get("row_no", ""), format_mmdd(r["date"], month))
+            for r in only_pdf
+            if r.get("has_blank")
+        ]
+        only_pdf_blank_rows.sort(key=lambda x: (x[2], x[0]))
+
         pdf_duplicates.sort(key=lambda d: (normalize_date(d["date"]), d["name"]))
         pdf_blank_flag_rows.sort(key=lambda r: (normalize_date(r["date"]), r["name"]))
 
         self.mismatch_rows = merged + date_error_rows
-        range_label = "1日〜15日" if is_first_half else f"16日〜{last_day}日"
+        range_label = f"{range_start}日〜{range_end}日"
         self._show_result(
-            len(matched), merged, date_error_rows, matched_blank_rows, pdf_duplicates, pdf_blank_flag_rows, month, range_label
+            len(matched),
+            merged,
+            date_error_rows,
+            matched_blank_rows,
+            only_pdf_blank_rows,
+            pdf_duplicates,
+            pdf_blank_flag_rows,
+            month,
+            range_label,
         )
 
     def _show_result(
-        self, matched_count, merged, date_error_rows, matched_blank_rows, pdf_duplicates, pdf_blank_flag_rows, month, range_label=""
+        self,
+        matched_count,
+        merged,
+        date_error_rows,
+        matched_blank_rows,
+        only_pdf_blank_rows,
+        pdf_duplicates,
+        pdf_blank_flag_rows,
+        month,
+        range_label="",
     ):
         self.result_text.config(state="normal")
         self.result_text.delete("1.0", "end")
 
         lines = [f"■ 対象範囲: {range_label}", f"■ HUGと日報の一致: {matched_count}件", ""]
         lines.append(f"■ 不一致(HUGと日報で欠席Ⅰ/欠席加算〇が食い違っている): {len(merged)}件")
-        for _, date, name, hug, nippo, row_no, _uke, has_blank in merged:
+        for _, date, name, hug, nippo, row_no, _uke, _has_blank in merged:
             row_no_disp = row_no if row_no else "-"
-            blank_part = "（空欄あり）" if has_blank == "あり" else ""
-            lines.append(f"{name}\t{row_no_disp}\t{date}\tHUG:{hug}、日報:{nippo}{blank_part}")
+            lines.append(f"{name}\t{row_no_disp}\t{date}\tHUG:{hug}、日報:{nippo}")
 
         lines.append("")
         lines.append(f"■ 日付の誤記の疑い(〇の行のみ対象・受付日が欠席日より後になっている): {len(date_error_rows)}件")
@@ -642,6 +737,12 @@ class App(BaseTk):
         self.blank_text.delete("1.0", "end")
         blank_lines = [f"■ 該当: {len(matched_blank_rows)}件", ""]
         for name, row_no, date in matched_blank_rows:
+            row_no_disp = row_no if row_no else "-"
+            blank_lines.append(f"{name}\t{row_no_disp}\t{date}\t（空欄あり）")
+
+        blank_lines.append("")
+        blank_lines.append(f"■ 不一致だが〇の行に空欄がある(記入漏れの疑い): {len(only_pdf_blank_rows)}件")
+        for name, row_no, date in only_pdf_blank_rows:
             row_no_disp = row_no if row_no else "-"
             blank_lines.append(f"{name}\t{row_no_disp}\t{date}\t（空欄あり）")
 
