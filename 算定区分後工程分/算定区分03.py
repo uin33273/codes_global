@@ -39,7 +39,9 @@ class ExcelMergerApp:
         )
         
         if not target_files:
-            # キャンセルされたらこのウィンドウを閉じて、司令塔(実行.py)を次の04へ進める
+            # キャンセルされたら司令塔(実行.py)側に伝えて、全体を強制終了させる
+            if getattr(self, "parent_root", None) is not None:
+                self.parent_root.cancelled = True
             self.root.destroy()
             return
             
@@ -121,6 +123,7 @@ class ExcelMergerApp:
 
 # --- 実行用関数（単体テスト用） ---
 def main(root=None):
+    parent_root = root
     if root is None:
         # 単体起動の場合
         root = tk.Tk()
@@ -136,7 +139,8 @@ def main(root=None):
     root.focus_force()
 
     app = ExcelMergerApp(root)
-    
+    app.parent_root = parent_root
+
     # 起動直後にファイル選択を開始
     root.after(100, app.start_process)
     

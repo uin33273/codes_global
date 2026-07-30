@@ -14,6 +14,7 @@ from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Border, Side, PatternFill, Font, Alignment, Color
 from openpyxl.utils import get_column_letter
 from openpyxl.chart import LineChart, Reference
+from openpyxl.chart.label import DataLabelList
 import ipywidgets as widgets
 from IPython.display import display
 import os, re, zipfile, copy, datetime, io
@@ -45,7 +46,7 @@ TREND_SHEET_NAME = 'エラー推移'
 TREND_HEADER     = ['日付', '所属名', 'エラー件数']
 PIVOT_SHEET_NAME = '集計'
 CHART_SHEET_NAME = 'グラフ'
-TOP_N_STORES = 20
+TOP_N_STORES = 10
 _XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 def _rebuild_trend_chart(wb):
@@ -64,12 +65,19 @@ def _rebuild_trend_chart(wb):
 
     value_map = {(r[0], r[1]): r[2] for r in rows if r[1] in store_set}
 
+    # 日付ごとの合計（全店舗対象、TOP_N_STORESの絞り込みとは無関係）
+    total_by_date = {}
+    for r in rows:
+        total_by_date[r[0]] = total_by_date.get(r[0], 0) + (r[2] or 0)
+
+    TOTAL_LABEL = '日々のエラー合計'
+
     if PIVOT_SHEET_NAME in wb.sheetnames:
         del wb[PIVOT_SHEET_NAME]
     ws_pivot = wb.create_sheet(PIVOT_SHEET_NAME)
-    ws_pivot.append(['日付'] + stores)
+    ws_pivot.append(['日付'] + stores + [TOTAL_LABEL])
     for d in dates:
-        ws_pivot.append([d] + [value_map.get((d, s)) for s in stores])
+        ws_pivot.append([d] + [value_map.get((d, s)) for s in stores] + [total_by_date.get(d)])
 
     if CHART_SHEET_NAME in wb.sheetnames:
         del wb[CHART_SHEET_NAME]
@@ -78,25 +86,56 @@ def _rebuild_trend_chart(wb):
     if not dates or not stores:
         return
 
+    max_row = 1 + len(dates)
+    store_max_col = 1 + len(stores)
+    total_col = store_max_col + 1
+    cats = Reference(ws_pivot, min_col=1, max_col=1, min_row=2, max_row=max_row)
+
+    # ── 店舗別（左軸）── 合計を混ぜないことで店舗間の増減が見やすくなる
     chart = LineChart()
     chart.title = f'店舗別エラー件数の推移（上位{TOP_N_STORES}店舗）'
     chart.x_axis.title = '日付'
-    chart.y_axis.title = 'エラー件数'
+    chart.y_axis.title = 'エラー件数（店舗別）'
     chart.x_axis.delete = False
     chart.y_axis.delete = False
     chart.style = 2
     chart.width = 28
     chart.height = 14
 
-    max_row = 1 + len(dates)
-    max_col = 1 + len(stores)
-    data = Reference(ws_pivot, min_col=2, max_col=max_col, min_row=1, max_row=max_row)
-    cats = Reference(ws_pivot, min_col=1, max_col=1, min_row=2, max_row=max_row)
-    chart.add_data(data, titles_from_data=True)
+    data_stores = Reference(ws_pivot, min_col=2, max_col=store_max_col, min_row=1, max_row=max_row)
+    chart.add_data(data_stores, titles_from_data=True)
     chart.set_categories(cats)
     for s in chart.series:
         s.smooth = False
 
+    # ── 日々のエラー合計（右軸）── 別スケールにして店舗別の折れ線を潰さないようにする
+    chart_total = LineChart()
+    data_total = Reference(ws_pivot, min_col=total_col, max_col=total_col, min_row=1, max_row=max_row)
+    chart_total.add_data(data_total, titles_from_data=True)
+    chart_total.y_axis.axId = 200
+    chart_total.y_axis.title = 'エラー件数（日々の合計）'
+    chart_total.y_axis.delete = False
+    # 右軸として表示するため、x軸の最大側で交差させる
+    chart_total.y_axis.crosses = 'max'
+    for s in chart_total.series:
+        s.smooth = False
+        s.graphicalProperties.line.width = 28000  # EMU単位（約2.2pt）
+        s.graphicalProperties.line.solidFill = 'FF0000'
+        s.marker.symbol = 'square'
+        s.marker.size = 7
+        s.marker.graphicalProperties.solidFill = 'FF0000'
+        s.marker.graphicalProperties.line.solidFill = 'FF0000'
+        # ポイント付近に件数の数値を表示
+        s.dLbls = DataLabelList()
+        s.dLbls.showVal = True
+        s.dLbls.showLegendKey = False
+        s.dLbls.showCatName = False
+        s.dLbls.showSerName = False
+        s.dLbls.showPercent = False
+        s.dLbls.showBubbleSize = False
+        s.dLbls.dLblPos = 't'
+
+    chart += chart_total
     ws_chart.add_chart(chart, 'B2')
 
 def _find_trend_file_id(drive_service):
@@ -489,5 +528,6 @@ def _run(b):
         files.download(zip_images)
 
     print("ダウンロード開始")
+    print("更新終了しました")
 
 _btn.on_click(_run)

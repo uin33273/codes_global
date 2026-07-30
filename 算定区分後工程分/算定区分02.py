@@ -35,18 +35,75 @@ class SplitterApp:
             region_dirs = [d for d in region_dirs if d.exists()]
 
             # 分割対象＝まだ _放/_児 になっていないExcelファイル
-            target_files = []
-            for d in region_dirs:
-                for f in d.glob('*.xlsx'):
-                    if f.name.startswith('~$'): continue
-                    if f.stem.endswith('_放') or f.stem.endswith('_児'): continue
-                    target_files.append((d, f))
+            def scan_target_files():
+                files = []
+                for d in region_dirs:
+                    for f in d.glob('*.xlsx'):
+                        if f.name.startswith('~$'): continue
+                        if f.stem.endswith('_放') or f.stem.endswith('_児'): continue
+                        files.append((d, f))
+                return files
+
+            def count_already_split():
+                return sum(
+                    1 for d in region_dirs for f in d.glob('*.xlsx')
+                    if not f.name.startswith('~$') and (f.stem.endswith('_放') or f.stem.endswith('_児'))
+                )
+
+            target_files = scan_target_files()
 
             total = len(target_files)
             if total == 0:
-                messagebox.showwarning("警告", "分割対象のExcelファイルが見つかりませんでした。", parent=self.root)
-                self.root.destroy()
-                return
+                already_split_count = count_already_split()
+                if region_dirs and already_split_count > 0:
+                    # 新旧データが混在しないよう、既存ファイルを使い回すのではなく、
+                    # 01のCSV→Excel変換を強制的にやり直して最新化する。
+                    # (CSV→Excelは同名ファイルに上書き保存されるため、削除しなくても
+                    #  最新のCSV内容に揃う。このデータは店舗ごとに_児/_放が別CSVとして
+                    #  ダウンロードされる仕様なので、変換後もファイル名はそのまま_児/_放になる)
+                    self.label.config(text="01を再実行して最新のCSVに更新しています...")
+                    self.root.update()
+                    converted = 算定区分01.convert_csv_files(region_dirs)
+
+                    # 再変換後に改めてスキャンし直す。結合レポート(まだ_放/_児に分かれて
+                    # いないCSV)があれば、そこから新たな分割対象が見つかる
+                    target_files = scan_target_files()
+                    total = len(target_files)
+
+                    if total == 0:
+                        # 追加で分割が必要な結合レポートは無かった(=このデータは元々
+                        # 店舗ごとに_児/_放が分かれているため、02独自の分割処理は不要)。
+                        # 常に最新のExcel群でZIPを作り直してから次(03)へ進む
+                        downloads_path = Path(os.path.expanduser("~")) / "Downloads"
+                        bundle_zip_base = downloads_path / "converted_excels_分割済み"
+                        shutil.make_archive(str(bundle_zip_base), 'zip', str(source_root))
+
+                        note = (
+                            f"01を再実行し、最新のCSVから{converted}件のExcelを作り直しました。"
+                            if converted > 0
+                            else "CSVが見つからなかったため、既存のExcelをそのままZIP化しました。"
+                        )
+                        messagebox.showinfo(
+                            "分割対象なし(既に単体ファイル)",
+                            "追加で分割が必要なExcelは見つかりませんでした。\n\n"
+                            f"振り分け先フォルダには_放/_児のExcelが{already_split_count}件あります。\n"
+                            f"{note}\n"
+                            "そのまま次(03)へ進みます。",
+                            parent=self.root,
+                        )
+                        self.root.destroy()
+                        return
+                    # else: 結合レポートが見つかったので、下の通常の分割処理へ進む
+                else:
+                    messagebox.showwarning(
+                        "分割対象のExcelが見つかりません",
+                        "分割対象のExcelファイルが見つかりませんでした。\n\n"
+                        "・算定区分01(CSV→Excel変換)が完了しているか\n"
+                        "をご確認ください。",
+                        parent=self.root,
+                    )
+                    self.root.destroy()
+                    return
 
             self.progress["maximum"] = total
 
@@ -56,6 +113,7 @@ class SplitterApp:
                 base_name = file_path.stem
 
                 df = pd.read_excel(file_path)
+                split_written = False
 
                 if not df.empty:
                     df = df[~df.iloc[:, 0].astype(str).str.contains(r"総計|\*集計", na=False)]
@@ -77,8 +135,24 @@ class SplitterApp:
 
                                 sub_df = pd.concat([sub_df, pd.DataFrame([total_row])], ignore_index=True)
                                 sub_df.to_excel(dest_dir / f"{base_name}_{prefix}.xlsx", index=False)
+                                split_written = True
 
-                file_path.unlink()
+                # 振り分け後に必要なのは分割済み(_放/_児)のExcelだけなので、分割元の
+                # 統合Excelと、同名のCSV(振り分け先へコピーされた分)はここで削除する。
+                # 生データ自体は archive_raw_folders で {年月}生データ に退避済みなので
+                # ここで消しても元データが失われることはない
+                if split_written:
+                    try:
+                        file_path.unlink()
+                    except OSError:
+                        pass
+                    csv_path = dest_dir / f"{base_name}.csv"
+                    if csv_path.exists():
+                        try:
+                            csv_path.unlink()
+                        except OSError:
+                            pass
+
                 self.progress["value"] = i
 
             # 202606フォルダ全体をまとめて、03.pyが読み込むconverted_excels_分割済み.zipを作成
