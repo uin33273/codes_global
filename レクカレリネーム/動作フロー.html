@@ -79,20 +79,44 @@
 
   <header class="top">
     <p class="eyebrow">動作フロー解説</p>
-    <h1>レクカレrename_add_area 動作フロー</h1>
-    <p class="path">レクカレリネーム\レクカレrename_add_area.py</p>
+    <h1>レクカレリネーム 動作フロー</h1>
+    <p class="path">レクカレリネーム\メニュー.py</p>
     <p class="lede">
-      フォルダ内の画像ファイルを店舗リストと照合し、ファイル名の先頭にエリア名を自動で付けてリネームするツール。
-      自動判定できないファイルは、検索ボックス付きのダイアログで手動選択する。
+      「メニュー.py」から、レクカレ画像リネーム(エリア付与)とレクカレ引き落しハイライトの
+      2つのツールを選んで起動できる。それぞれ別プロセスで起動し、独立して動作する。
     </p>
     <nav class="toc">
-      <a href="#overview">全体の流れ</a>
-      <a href="#detail">自動判定ロジック</a>
+      <a href="#menu">メニューの起動</a>
+      <a href="#overview">リネーム: 全体の流れ</a>
+      <a href="#detail">リネーム: 自動判定ロジック</a>
+      <a href="#highlight">ハイライト: 全体の流れ</a>
     </nav>
   </header>
 
+  <section class="diagram-section" id="menu">
+    <h3 class="diagram-title">メニューの起動</h3>
+    <p class="diagram-sub">台帳.hta の「レクカレリネーム」▶起動、または python メニュー.py で開く選択画面。</p>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart LR
+    Start(["メニュー.py 起動"]) --> Guide["「仕事の進め方」画面を表示\n(手順.txt の内容)"]
+    Guide --> GuideClose["「閉じる(作業を始める)」を押す"]
+    GuideClose --> MenuWin["レクカレメニュー画面を表示"]
+    MenuWin --> Choice{"ボタンを選択"}
+    Choice -- "①レクカレ画像リネーム" --> Rename["レクカレrename_add_area.py\nを別プロセスで起動"]
+    Choice -- "②レクカレ引き落しハイライト" --> Highlight["レクカレハイライト.py\nを別プロセスで起動"]
+    Choice -- "終了" --> End(["メニューを閉じる"])
+    Rename --> Menu2["レクカレメニュー画面はそのまま残る\n(続けて別のツールも起動可)"]
+    Highlight --> Menu2
+</pre>
+      </div>
+      <p class="diagram-caption">「仕事の進め方」はレクカレメニューが開く前に1回だけ表示される。対象の.pyファイルが同じフォルダに見つからない場合はエラーダイアログを表示する。</p>
+    </div>
+  </section>
+
   <section class="diagram-section" id="overview">
-    <h3 class="diagram-title">全体の流れ</h3>
+    <h3 class="diagram-title">レクカレrename_add_area: 全体の流れ</h3>
     <p class="diagram-sub">店舗リスト読込み〜フォルダ選択〜自動/手動判定〜リネーム実行までの流れ。</p>
     <div class="diagram-frame">
       <div class="diagram-scroll">
@@ -148,8 +172,44 @@ flowchart TD
     </div>
   </section>
 
+  <section class="diagram-section" id="highlight">
+    <h3 class="diagram-title">レクカレハイライト: 全体の流れ</h3>
+    <p class="diagram-sub">
+      レクカレ画像から「引き落し」の記載を自動検出し、黄色マーカー＋赤枠でハイライトするツール。
+      対象は3種類のカレンダーテンプレート(赤バナー／Global Kids Parkの虹背景／Global Kids methodの水色背景)で、
+      前の2つは赤字、Global Kids methodは黒字で「引き落し」が表記されるため、赤系・黒系それぞれの
+      候補検出＋専用テンプレートとの照合を行う。
+    </p>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    Start(["起動\npython レクカレハイライト.py"]) --> SelectFolder["フォルダ選択ダイアログを表示"]
+    SelectFolder --> FolderCheck{"選択したか"}
+    FolderCheck -- キャンセル --> End1(["終了"])
+    FolderCheck -- はい --> Dedup["同じ店舗(末尾0/1)は\n0のファイルだけを対象にする"]
+    Dedup --> Progress["進捗バー付きウィンドウを表示"]
+    Progress --> Loop["ファイルを1件ずつ処理\n(処理ごとに進捗バーを更新)"]
+    Loop --> Detect["赤系文字ブロック＋黒系文字ブロックの\n候補領域を検出"]
+    Detect --> Match["候補ごとに「引き落し」見本画像と\nテンプレートマッチングして一致度を算出"]
+    Match --> Judge{"最高一致度は\nどの範囲か"}
+    Judge -- "0.7以上(hit)" --> Hit["黄色マーカー＋赤枠を付けて保存\n→ (フォルダ名)_highlight 直下"]
+    Judge -- "0.5〜0.7未満(要確認)" --> Review["青枠を付けて保存\n→ _要確認 フォルダ"]
+    Judge -- "0.5未満／候補なし" --> NoCheck["そのまま保存\n→ チェック不要 フォルダ"]
+    Hit --> Next{"次のファイルが\nあるか"}
+    Review --> Next
+    NoCheck --> Next
+    Next -- あり --> Loop
+    Next -- なし --> Report["ハイライト結果一覧.csvを出力\n(座標・一致度・判定を全件記録)"]
+    Report --> OpenDir["ダウンロードフォルダ内の\n(フォルダ名)_highlight を自動で開く"]
+</pre>
+      </div>
+      <p class="diagram-caption">出力先は選んだ元フォルダの場所に関わらず常にダウンロードフォルダ直下。hit / 要確認 / チェック不要 は排他的な振り分けのため、処理対象ファイル数と出力3フォルダの合計ファイル数は必ず一致する。</p>
+    </div>
+  </section>
+
   <footer class="foot">
-    店舗リストの参照先は <code>C:\Users\owner\Desktop\works\保管書類\店舗リスト\table_HHHL共通店舗一覧m.xlsm</code> 固定(コード内にパス直書き)。
+    店舗リストの参照先は <code>C:\Users\owner\Desktop\works\保管書類\店舗リスト\table_HHHL共通店舗一覧m.xlsm</code> 固定(コード内にパス直書き、レクカレrename_add_areaのみ使用)。
   </footer>
 
 </div>

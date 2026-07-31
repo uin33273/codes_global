@@ -354,6 +354,7 @@ def ask_shop_choice(parent, names, shop_display, ambiguous):
 
     search_entry.bind("<Return>", lambda e: on_ok())
     listbox.bind("<Return>", lambda e: on_ok())
+    listbox.bind("<Double-Button-1>", lambda e: on_ok())
 
     button_row = ttk.Frame(win)
     button_row.pack(side="bottom", fill="x", padx=12, pady=(0, 12))
@@ -608,7 +609,7 @@ def show_mode_launcher(root):
         win.destroy()
 
     ttk.Button(win, text="① 弁当代を集計する", command=lambda: choose("aggregate")).pack(fill="x", padx=30, pady=6)
-    ttk.Button(win, text="② HUGテキストをG列へ転記する", command=lambda: choose("hug")).pack(fill="x", padx=30, pady=6)
+    ttk.Button(win, text="② 弁当代エクセルにHUGデータ連結", command=lambda: choose("hug")).pack(fill="x", padx=30, pady=6)
 
     win.protocol("WM_DELETE_WINDOW", lambda: choose("aggregate"))
     win.lift()
@@ -647,7 +648,7 @@ def main():
     )
     if not target_ym: return
 
-    folder_path = filedialog.askdirectory(title="エクセルがあるフォルダを選択してください")
+    folder_path = filedialog.askdirectory(title="弁当代エクセルのフォルダを選択してください")
     if not folder_path: return
 
     target_files = [f for f in os.listdir(folder_path)

@@ -100,22 +100,43 @@
     <p class="lede">
       指定フォルダ内の各店舗のExcelから「弁当注文人数」列を集計し、店舗マスタと突き合わせて
       注文あり／注文なし／ファイルなし の3種類に分けて1つのExcelにまとめるツール。
+      さらに、HUG「実費負担実績表」のテキストを貼り付けて、集計表のG〜I列に
+      判定・内訳を転記する機能も持つ。
     </p>
     <nav class="toc">
-      <a href="#overview">全体の流れ</a>
-      <a href="#detail">1ファイルごとの判定ロジック</a>
+      <a href="#launch">起動時のモード選択</a>
+      <a href="#overview">①集計モードの全体の流れ</a>
+      <a href="#detail">①1ファイルごとの判定ロジック</a>
+      <a href="#hug">②HUGテキスト転記の流れ</a>
       <a href="#legend">出力ファイルの色分け</a>
     </nav>
   </header>
 
+  <section class="diagram-section" id="launch">
+    <h3 class="diagram-title">起動時のモード選択</h3>
+    <p class="diagram-sub">起動直後は「仕事の進め方」ダイアログを閉じるとメニューが出て、①集計／②HUG転記のどちらかを選ぶ。</p>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    S(["起動"]) --> Console["コンソールウインドウを最小化"]
+    Console --> Guide["「仕事の進め方」ダイアログを表示\n(閉じるまで先に進めない)"]
+    Guide --> Menu{"メニューでどちらを選ぶか"}
+    Menu -- "①弁当代を集計する" --> Mode1["集計モードへ\n(下図「①集計モードの全体の流れ」)"]
+    Menu -- "②HUGテキストをG列へ転記する" --> Mode2["HUG転記モードへ\n(下図「②HUGテキスト転記の流れ」)"]
+</pre>
+      </div>
+    </div>
+  </section>
+
   <section class="diagram-section" id="overview">
-    <h3 class="diagram-title">全体の流れ</h3>
+    <h3 class="diagram-title">①集計モードの全体の流れ</h3>
     <p class="diagram-sub">店舗マスタの読み込みから、最終Excelの装飾・末尾セクション追加までの流れ。</p>
     <div class="diagram-frame">
       <div class="diagram-scroll">
 <pre class="mermaid">
 flowchart TD
-    Start(["起動"]) --> Master["店舗マスタ(table_HHHL共通店舗一覧m.xlsm)を読込み\n店舗名→URL／区分の対応表を作成"]
+    Start(["集計モード開始"]) --> Master["店舗マスタ(table_HHHL共通店舗一覧m.xlsm)を読込み\n店舗名→URL／区分の対応表を作成"]
     Master --> YM["対象年月を入力(例: 202604)"]
     YM --> YMCheck{"入力したか"}
     YMCheck -- キャンセル --> End1(["終了"])
@@ -135,20 +156,20 @@ flowchart TD
     Next -- はい --> Missing["マスタにはあるが\nどのファイルにも出てこなかった\n店舗を抽出(missing_shops)"]
     Missing --> AnyData{"3つのリストの\nいずれかにデータがあるか"}
     AnyData -- なし --> WarnEnd(["「データが見つかりません」\nと表示して終了"])
-    AnyData -- あり --> Build["注文ありデータを区分→店舗名→日付順に並べ替え\nDownloadsに「弁当チェック_年月_日時.xlsx」として保存"]
-    Build --> Deco["A列をハイパーリンク化\n店舗ごとに縞模様の背景色を適用"]
+    AnyData -- あり --> Build["注文ありデータを区分→店舗名→日付順に並べ替え\nDownloadsに「フォルダ名集計表.xlsx」として保存"]
+    Build --> Deco["A列をハイパーリンク化\n店舗ごとに縞模様の背景色を適用\nG「判定」/H「HUG」/I「HUG小計」の見出しも用意"]
     Deco --> ZeroSec["【注文なし店舗】セクションを\n黄色ヘッダーで末尾に追加"]
     ZeroSec --> Dedup["先頭5文字が既出店舗と一致する\n類似名の店舗をmissing_shopsから除外"]
     Dedup --> MissSec["【ファイルなし店舗】セクションを\nオレンジヘッダーで末尾に追加"]
     MissSec --> Format["列幅を自動調整し\nヘッダー行を折り返し表示に"]
-    Format --> Done(["完了メッセージを表示し\nファイルを開く"])
+    Format --> Done(["完了メッセージを表示し\nファイルを開く\n(→②HUG転記で使う集計表になる)"])
 </pre>
       </div>
     </div>
   </section>
 
   <section class="diagram-section" id="detail">
-    <h3 class="diagram-title">1ファイルごとの判定ロジック</h3>
+    <h3 class="diagram-title">①1ファイルごとの判定ロジック</h3>
     <p class="diagram-sub">上図「1ファイルずつ判定」の中身。店舗名の特定から、注文あり/なしの分岐まで。</p>
     <div class="diagram-frame">
       <div class="diagram-scroll">
@@ -165,27 +186,63 @@ flowchart TD
     G --> H{"見出しが\n見つかったか"}
     H -- いいえ --> SkipF
     H -- はい --> I["見出し行をヘッダーとして\nデータを再読込み"]
-    I --> J["数値でない・空でもない\n記入(文字扱い)の行を抽出"]
-    J --> K["数値かつ0より大きい行を抽出"]
+    I --> J["数値でない・空でもない\n記入(文字扱い)の行を抽出\n例:「放５児２」「児童２名」"]
+    J --> J2["文字扱いの行は、含まれる数値を\nすべて合計して人数に変換\n(例: 放５児２ → 7)"]
+    J2 --> K["数値かつ0より大きい行を抽出"]
     K --> L["両方を結合し重複除去"]
     L --> M{"結合結果が空 かつ\n合計が0以下か"}
     M -- はい --> Zero(["注文なし店舗として記録"])
     M -- いいえ --> Combined(["注文ありデータとして記録"])
 </pre>
       </div>
-      <p class="diagram-caption">店舗名の照合は「店」の有無や前後の空白を無視した正規化キーで行うため、表記ゆれがあっても同一店舗として扱われる。</p>
+      <p class="diagram-caption">店舗名の照合は「店」の有無や前後の空白を無視した正規化キーで行うため、表記ゆれがあっても同一店舗として扱われる。数値が1つも含まれない文字(例:「欠席」)はそのまま文字として残る。</p>
+    </div>
+  </section>
+
+  <section class="diagram-section" id="hug">
+    <h3 class="diagram-title">②HUGテキスト転記の流れ</h3>
+    <p class="diagram-sub">HUG「実費負担実績表」ページのテキストを、①で作った集計表のG〜I列に転記する処理。</p>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    Start2(["HUG転記モード開始"]) --> Pick["転記先の集計表(〇〇集計表.xlsx)を選択"]
+    Pick --> Paste["HUGページのテキストを貼り付けて\n「転記」ボタンを押す"]
+    Paste --> Parse["テキストから施設名・年月・\n日別の弁当【児】【放】人数を読み取る"]
+    Parse --> ParseCheck{"データを\n読み取れたか"}
+    ParseCheck -- いいえ --> ErrMsg(["エラー内容を表示して終了"])
+    ParseCheck -- はい --> Zero0["人数が0人の記載は除外\n(day_countsに含めない)"]
+    Zero0 --> Search["対象月のD列(店舗名)から\n施設名を含む候補を検索"]
+    Search --> Cand{"候補は何件か"}
+    Cand -- "1件" --> Fix["その店舗名で確定"]
+    Cand -- "0件 or 複数件" --> Choice["「店舗の選択」画面を表示\n(絞り込み欄・↑↓・Enterで選べる)"]
+    Choice --> ChoiceCheck{"選んだか"}
+    ChoiceCheck -- キャンセル --> End2(["この店舗分は転記せず終了\n(貼り付けたテキストは残る)"])
+    ChoiceCheck -- はい --> Fix
+    Fix --> Match["確定した店舗名・対象月の行を\n日付ごとに照合"]
+    Match --> MatchCheck{"同じ日付の行が\n元の集計表にあるか"}
+    MatchCheck -- ある --> Judge["弁当注文人数とHUG人数を比較し\nG列に〇/×、H列に内訳、I列(HUG小計)に合計を記入"]
+    MatchCheck -- ない --> Insert["新しい行を挿入し\nD列・E列・G〜I列を記入\n(A列のファイルリンクは空欄のまま)"]
+    Judge --> Done2["結果(一致/不一致件数)を表示"]
+    Insert --> Done2
+    Done2 --> AllNg{"全件不一致だったか"}
+    AllNg -- はい --> Offer(["「エクセルファイルを\n開きますか？」と確認"])
+    AllNg -- いいえ --> End3(["完了"])
+</pre>
+      </div>
+      <p class="diagram-caption">行を新しく挿入する際は、既存のA列ハイパーリンクが1行分ずれないよう、挿入位置より下のリンクを自動で追従させてから挿入行のA列を空欄にする。</p>
     </div>
   </section>
 
   <section class="diagram-section" id="legend">
-    <h3 class="diagram-title">出力ファイルの色分け</h3>
-    <p class="diagram-sub">「弁当チェック_年月_日時.xlsx」内で使われている配色の意味。</p>
+    <h3 class="diagram-title">出力ファイルの色分け・列の意味</h3>
+    <p class="diagram-sub">「フォルダ名集計表.xlsx」内で使われている配色と、G〜I列(②HUG転記用)の意味。</p>
     <table class="legend">
       <thead><tr><th style="width:30%">表示箇所</th><th>意味</th></tr></thead>
       <tbody>
         <tr>
           <td><span class="swatch" style="background:#0563C1"></span>A列(青字・下線)</td>
-          <td>元のExcelファイルへのハイパーリンク</td>
+          <td>元のExcelファイルへのハイパーリンク(②で新規挿入された行は空欄)</td>
         </tr>
         <tr>
           <td><span class="swatch" style="background:#F2F2F2"></span>本体行(灰色の縞模様)</td>
@@ -198,6 +255,18 @@ flowchart TD
         <tr>
           <td><span class="swatch" style="background:#FFC000"></span>【ファイルなし店舗】ヘッダー</td>
           <td>マスタにはあるが対象フォルダにファイル自体が見つからなかった店舗。類似名(先頭5文字一致)は除外済み(行は薄いオレンジ <span class="swatch" style="background:#FFE8CC"></span>)</td>
+        </tr>
+        <tr>
+          <td>G列「判定」</td>
+          <td>②HUG転記で、弁当注文人数とHUGの人数が一致なら「〇」、不一致なら「×」</td>
+        </tr>
+        <tr>
+          <td>H列「HUG」</td>
+          <td>②HUG転記で読み取った内訳の文字列(例: 加須プラス6/26_2人)</td>
+        </tr>
+        <tr>
+          <td>I列「HUG小計」</td>
+          <td>②HUG転記で読み取った人数の合計(0人だった記載は含めない)</td>
         </tr>
       </tbody>
     </table>
