@@ -138,11 +138,11 @@ def ask_store_for_file(root, filename, stores, folder, initial_query=""):
     display_list = []  # (raw_name, area)
 
     def refresh(*_args):
-        query = search_var.get().strip()
+        query = normalize_text(search_var.get().strip())
         listbox.delete(0, tk.END)
         display_list.clear()
         for _num3, _rest, area, raw in stores:
-            if query == "" or query in str(raw) or (area and query in str(area)):
+            if query == "" or query in normalize_text(str(raw)) or (area and query in normalize_text(str(area))):
                 display_list.append((raw, area))
         for raw, area in display_list:
             listbox.insert(tk.END, f"{raw}   [{area}]")

@@ -172,6 +172,26 @@ def parse_bento_text_count(text):
         return None
     return sum(int(n) for n in numbers)
 
+BENTO_COUNT_UNIT_KEYWORDS = ("児", "放", "名", "人")
+
+def has_bento_count_unit(text):
+    """「放５児２」「児童２名」のように人数を表す単位語(児/放/名/人)を含むかどうか。
+    「①」のような記号や「あわせて」のような単位語のない文字列と、
+    実際の人数表記を区別するために使う。"""
+    return any(k in str(text) for k in BENTO_COUNT_UNIT_KEYWORDS)
+
+def resolve_text_bento_count(text):
+    """弁当注文人数欄の文字列を(人数, 記号扱いにするか)のペアにする。
+    単位語を含み数値も抽出できる場合のみ実際の人数として合計し、
+    それ以外（①等の記号、あわせて等の単位語なし文字列、単位語はあるが数値が
+    見つからない場合）は人数として扱えないため0にし、記号扱いフラグを立てる
+    （呼び出し側で出力セルを黄色にする）。"""
+    if has_bento_count_unit(text):
+        n = parse_bento_text_count(text)
+        if n is not None:
+            return n, False
+    return 0, True
+
 def to_file_link(path):
     """ローカルファイルパスをExcelハイパーリンク用のfile:///形式に変換する"""
     if not path:
@@ -237,12 +257,15 @@ def parse_hug_text(text):
 
     day_counts = {}
     current_day = None
-    day_line_re = re.compile(r"^\d{1,2}$")
+    # 行末が1〜2桁の数字であれば日付区切りとして認識する（例：「海の日 20」のように
+    # 祝日名が数字の前に付いている行も、行全体が数字のみの行と同様に日付として扱う）
+    day_line_re = re.compile(r"^(?:\S*\s)?(\d{1,2})$")
     bento_re = re.compile(r"弁当【[児放]】.*?（(\d+)人）")
     for ln in lines:
         s = ln.strip()
-        if day_line_re.match(s):
-            d = int(s)
+        m_day = day_line_re.match(s)
+        if m_day:
+            d = int(m_day.group(1))
             if 1 <= d <= 31:
                 current_day = d
             continue
@@ -369,19 +392,18 @@ def ask_shop_choice(parent, names, shop_display, ambiguous):
     return result["value"]
 
 
-_HYPERLINK_REF_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
-
-def shift_hyperlinks_after_insert(ws, insert_row, amount=1):
-    """ws.insert_rows()はセルの値・書式はずらすが、ハイパーリンク参照(ws._hyperlinks)は
-    ずらさないため、挿入位置以降にあるハイパーリンクの行番号を手動でamount分ずらして追従させる。
-    これを行わないと、挿入行より下のA列リンクが1行分ずれて別の店舗のリンクを開いてしまう。"""
-    for hl in ws._hyperlinks:
-        m = _HYPERLINK_REF_RE.match(hl.ref)
-        if not m:
-            continue
-        col_letters, row_num = m.group(1), int(m.group(2))
-        if row_num >= insert_row:
-            hl.ref = f"{col_letters}{row_num + amount}"
+def sync_hyperlink_refs(ws):
+    """セルが保持するHyperlinkオブジェクトのref属性を、セルの実際の座標に合わせ直す。
+    ws.insert_rows()はセルの位置(row/column)を移動させるが、セルに紐づくHyperlink
+    オブジェクトのref（保存時にどのセルへリンクを紐付けるかを決める文字列）は追従して
+    更新されない。ws._hyperlinksはload_workbook直後は空リストで、保存時にセルの
+    hyperlink属性から再構築されるだけなので、そこを書き換えても意味が無い。
+    各セルのhyperlink.refを直接cell.coordinateに合わせることで、保存後にA列リンクが
+    1行ずれて別の店舗のファイルを開いてしまう不具合を防ぐ。"""
+    for row in ws.iter_rows():
+        for cell in row:
+            if cell.hyperlink is not None:
+                cell.hyperlink.ref = cell.coordinate
 
 def apply_hug_data_to_excel(xlsx_path, shop_display, shop_full_name, year, month, day_counts):
     """G列に判定(〇/×)、H列にHUG内訳、I列に小計を書き込む。
@@ -448,7 +470,6 @@ def apply_hug_data_to_excel(xlsx_path, shop_display, shop_full_name, year, month
                     break
 
         ws.insert_rows(insert_row)
-        shift_hyperlinks_after_insert(ws, insert_row)
         ws.cell(row=insert_row, column=1, value=None)  # A列（ファイルリンク）は空欄のまま
         ws.cell(row=insert_row, column=4, value=shop_full_name)
         ws.cell(row=insert_row, column=5, value=f"{month}/{day}")
@@ -463,6 +484,7 @@ def apply_hug_data_to_excel(xlsx_path, shop_display, shop_full_name, year, month
         inserted += 1
         unmatched_txt_days.remove(day)
 
+    sync_hyperlink_refs(ws)
     wb.save(xlsx_path)
     return matched, mismatched, inserted, unmatched_txt_days
 
@@ -732,10 +754,12 @@ def main():
             total        = df['_bento_num'].sum()
             mask_numeric = df['_bento_num'] > 0
             df_numeric   = df[mask_numeric].copy()
+            df_numeric['_is_symbol'] = False
 
-            df_text['_bento_num'] = df_text[col_name_bento].apply(parse_bento_text_count)
-            mask_parsed = df_text['_bento_num'].notna()
-            df_text.loc[mask_parsed, col_name_bento] = df_text.loc[mask_parsed, '_bento_num'].astype(int)
+            resolved = df_text[col_name_bento].apply(resolve_text_bento_count)
+            df_text['_bento_num'] = resolved.apply(lambda t: t[0])
+            df_text['_is_symbol'] = resolved.apply(lambda t: t[1])
+            df_text[col_name_bento] = df_text['_bento_num']
             df_numeric[col_name_bento] = df_numeric['_bento_num']
 
             df_filtered = pd.concat([df_numeric, df_text]).drop_duplicates()
@@ -757,8 +781,8 @@ def main():
                 df_filtered['ファイルリンク'] = to_file_link(file_path)
                 df_filtered['sort_date'] = pd.to_datetime(df_filtered[col_name_date], errors='coerce')
 
-                res_df = df_filtered[['ファイル名', '区分', '店舗名', col_name_date, col_name_bento, 'ファイルリンク', 'sort_date']]
-                res_df.columns = ['ファイル名', '区分', '店舗名', '日付', '弁当注文人数', 'ファイルリンク', 'sort_date']
+                res_df = df_filtered[['ファイル名', '区分', '店舗名', col_name_date, col_name_bento, 'ファイルリンク', 'sort_date', '_is_symbol']]
+                res_df.columns = ['ファイル名', '区分', '店舗名', '日付', '弁当注文人数', 'ファイルリンク', 'sort_date', '_is_symbol']
 
                 # 同じ日付が複数行ある場合は1行にまとめ、弁当注文人数は合算する
                 def _sum_bento(s):
@@ -775,8 +799,9 @@ def main():
                     '弁当注文人数':  _sum_bento,
                     'ファイルリンク': 'first',
                     'sort_date':    'first',
+                    '_is_symbol':   'any',
                 })
-                res_df = res_df[['ファイル名', '区分', '店舗名', '日付', '弁当注文人数', 'ファイルリンク', 'sort_date']]
+                res_df = res_df[['ファイル名', '区分', '店舗名', '日付', '弁当注文人数', 'ファイルリンク', 'sort_date', '_is_symbol']]
 
                 combined_list.append(res_df)
             else:
@@ -819,10 +844,15 @@ def main():
             final_df['日付'] = final_df['sort_date'].apply(format_md)
             final_df = final_df.drop(columns=['sort_date'])
 
+            # 「①」等の記号扱いで0にした行を、後でExcel保存後に黄色くするための一覧
+            bento_symbol_flags = final_df['_is_symbol'].tolist()
+            final_df = final_df.drop(columns=['_is_symbol'])
+
             final_df.insert(0, '【注文あり店舗】ファイルリンク', final_df['ファイルリンク'])
             final_df = final_df.drop(columns=['ファイルリンク'])
         else:
             final_df = pd.DataFrame(columns=['【注文あり店舗】ファイルリンク', 'ファイル名', '区分', '店舗名', '日付', '弁当注文人数'])
+            bento_symbol_flags = []
 
         final_df.to_excel(save_path, index=False)
 
@@ -851,6 +881,12 @@ def main():
             if current_fill:
                 for col_idx in range(1, 7):
                     ws.cell(row=row_idx, column=col_idx).fill = fill_gray
+
+        # 「①」等の記号扱いで人数を0にした行は、弁当注文人数セル(F列)を黄色にして目立たせる
+        fill_bento_symbol = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+        for offset, is_symbol in enumerate(bento_symbol_flags):
+            if is_symbol:
+                ws.cell(row=2 + offset, column=6).fill = fill_bento_symbol
 
         ws.column_dimensions['A'].width  = 4
         ws.column_dimensions['B'].hidden = True
