@@ -640,6 +640,64 @@ def show_mode_launcher(root):
     return result["mode"]
 
 
+def save_shop_list_excel(final_df, zero_shops, missing_shops, save_path):
+    """集計表(final_df/zero_shops/missing_shops)に登場する店舗をまとめ、
+    同じ店舗が複数行(日付ごと等)に渡って重複していても1行だけになる店舗一覧を
+    別ファイルとして保存する。列は「ファイルリンク・区分・店舗名」の3列。"""
+    parts = []
+    if not final_df.empty:
+        tmp = final_df[['【注文あり店舗】ファイルリンク', '区分', '店舗名']].copy()
+        tmp.columns = ['ファイルリンク', '区分', '店舗名']
+        parts.append(tmp)
+    for shop in zero_shops:
+        parts.append(pd.DataFrame([{
+            'ファイルリンク': shop.get('url', ''),
+            '区分':       shop.get('区分', ''),
+            '店舗名':     shop.get('店舗名', ''),
+        }]))
+    for shop in missing_shops:
+        parts.append(pd.DataFrame([{
+            'ファイルリンク': shop.get('url', ''),
+            '区分':       shop.get('区分', ''),
+            '店舗名':     shop.get('店舗名', ''),
+        }]))
+
+    if not parts:
+        return
+
+    shop_df = pd.concat(parts, ignore_index=True)
+    shop_df = shop_df.drop_duplicates(subset=['ファイルリンク', '区分', '店舗名'], keep='first').reset_index(drop=True)
+
+    shop_df.to_excel(save_path, index=False)
+
+    wb = openpyxl.load_workbook(save_path)
+    ws = wb.active
+
+    hyperlink_font = Font(color="0563C1", underline="single")
+    for row_idx in range(2, ws.max_row + 1):
+        cell = ws.cell(row=row_idx, column=1)
+        url_val = cell.value
+        if url_val and str(url_val).startswith(("http", "file:")):
+            cell.hyperlink = url_val
+            cell.value     = url_val
+            cell.font      = hyperlink_font
+
+    ws.column_dimensions['A'].width = 4
+    for col_letter, col_idx in [('B', 2), ('C', 3)]:
+        max_len = max(
+            (len(str(ws.cell(row=r, column=col_idx).value))
+             for r in range(2, ws.max_row + 1)
+             if ws.cell(row=r, column=col_idx).value not in (None, "")),
+            default=8
+        )
+        ws.column_dimensions[col_letter].width = max_len + 2
+
+    for cell in ws[1]:
+        cell.alignment = Alignment(wrap_text=True, vertical='center')
+
+    wb.save(save_path)
+
+
 def main():
     minimize_console_window()
     show_instructions_dialog()
@@ -967,8 +1025,13 @@ def main():
             cell.alignment = Alignment(wrap_text=True, vertical='center')
 
         wb.save(save_path)
-        messagebox.showinfo("完了", f"保存しました：\n{output_name}")
-        os.startfile(save_path)
+
+        shop_list_name = "弁当代チェック_店舗一覧.xlsx"
+        shop_list_path = os.path.join(os.path.expanduser("~"), "Downloads", shop_list_name)
+        save_shop_list_excel(final_df, zero_shops, missing_shops, shop_list_path)
+
+        messagebox.showinfo("完了", f"保存しました：\n{output_name}\n{shop_list_name}")
+        os.startfile(shop_list_path)
     else:
         messagebox.showwarning("結果", "データが見つかりませんでした。")
 

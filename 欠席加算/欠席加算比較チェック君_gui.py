@@ -6,7 +6,7 @@
   1. PDF「欠席時対応記録票」をウィンドウにドラッグ&ドロップ(またはボタンで選択)
   2. カレンダー画面からコピーしたテキストを、下のテキスト欄に貼り付け(Ctrl+V)
   3. 「比較する」ボタンを押すと、一致件数・不一致(片方にしかない組み合わせ)を
-     ウィンドウ内に一覧表示する。不一致リストはCSVにも保存できる。
+     ウィンドウ内に一覧表示する。
 
 ■事前準備 (初回のみ、コマンドプロンプトで実行)
     pip install pdfplumber tkinterdnd2
@@ -17,7 +17,6 @@
   ドラッグ&ドロップができない場合は自動的に「PDFを選択」ボタンのみのモードで動作します。
 """
 
-import csv
 import os
 import re
 import sys
@@ -27,6 +26,7 @@ import calendar as calendar_mod
 from datetime import datetime
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+from tkinter import font as tkfont
 
 # ============================== 仕事の進め方 / 取説 ==============================
 
@@ -83,12 +83,21 @@ except ImportError:
 RELATION_WORDS = ["祖父母", "祖父", "祖母", "本人", "その他", "父", "母", "兄", "姉", "弟", "妹"]
 
 
+# 同一人物でもPDF/カレンダーで表記が揺れる異体字を吸収するための対応表
+# (例: 「田邉」と「田邊」は同じ「たなべ」姓として一致させる)
+VARIANT_CHAR_MAP = {
+    "邊": "邉",
+}
+
+
 def normalize_name(name: str) -> str:
     if name is None:
         return ""
     name = unicodedata.normalize("NFKC", name)
     name = name.upper()
     name = re.sub(r"\s+", "", name)
+    for src, dst in VARIANT_CHAR_MAP.items():
+        name = name.replace(src, dst)
     return name
 
 
@@ -329,8 +338,8 @@ def find_pdf_date_errors(pdf_path: str):
 
 
 def parse_calendar_text(text: str, month: int = None):
-    """カレンダー画面のコピペテキストから「欠席Ⅰ」を抽出。
-    通常の「欠席Ⅰ」はstatus='○'、「欠席Ⅰ（加算なし）」はstatus='✕'として区別する。"""
+    """カレンダー画面のコピペテキストから「欠席」を抽出。
+    通常の「欠席」はstatus='○'、「欠席（加算なし）」はstatus='✕'として区別する。"""
     lines = text.splitlines()
 
     def is_day_header(line):
@@ -364,14 +373,11 @@ def parse_calendar_text(text: str, month: int = None):
         if re.fullmatch(r"出席(\d+)人", s):
             state = "attend"
             continue
-        if re.fullmatch(r"欠席Ⅰ（加算なし）(\d+)人", s):
+        if re.fullmatch(r"欠席（加算なし）(\d+)人", s):
             state = "absent1_nokasan"
             continue
-        if re.fullmatch(r"欠席Ⅰ(\d+)人", s):
+        if re.fullmatch(r"欠席(\d+)人", s):
             state = "absent1"
-            continue
-        if re.match(r"欠席Ⅱ", s):
-            state = "other"
             continue
 
         if current_day is not None and state in ("absent1", "absent1_nokasan"):
@@ -411,7 +417,6 @@ class App(BaseTk):
         self.geometry("820x720")
 
         self.pdf_path = None
-        self.mismatch_rows = []  # 保存用に最後の不一致リストを覚えておく
         self._instructions_win = None
 
         self._build_widgets()
@@ -456,6 +461,18 @@ class App(BaseTk):
         # --- 実行ボタン(bottomに先取りしてpackし、カレンダー欄を縮めても隠れないようにする) ---
         ttk.Button(top_frame, text="③ 比較する", command=self._run_compare).pack(side="bottom", pady=6)
 
+        # --- ②の上にHUG側の画面場所を示すヒント行(他より1段階大きいフォント) ---
+        default_font = tkfont.nametofont("TkDefaultFont")
+        point_font = tkfont.Font(
+            family=default_font.cget("family"), size=default_font.cget("size") + 2
+        )
+        ttk.Label(
+            top_frame,
+            text="Point【MENU-利用者管理-出席カレンダー】",
+            font=point_font,
+            anchor="w",
+        ).pack(fill="x", padx=10, pady=(6, 0))
+
         # --- カレンダーテキストエリア ---
         frame_cal = ttk.LabelFrame(top_frame, text="② HUGカレンダー画面のテキストを貼り付け(全選択コピペでOK)")
         frame_cal.pack(fill="both", expand=True, **pad)
@@ -493,9 +510,6 @@ class App(BaseTk):
         # --- 結果表示エリア(左右にドラッグで幅調整、上下(本エリアの高さ)もドラッグで調整可能) ---
         frame_result = ttk.LabelFrame(bottom_frame, text="結果")
         frame_result.pack(fill="both", expand=True, **pad)
-
-        # 保存ボタンをbottomに先取りしてpackし、結果欄を縮めても隠れないようにする
-        ttk.Button(frame_result, text="不一致リストをCSVで保存...", command=self._save_csv).pack(side="bottom", pady=(0, 10))
 
         paned = tk.PanedWindow(frame_result, orient="horizontal", sashrelief="raised", sashwidth=6)
         paned.pack(fill="both", expand=True, padx=10, pady=(10, 4))
@@ -666,7 +680,6 @@ class App(BaseTk):
         self.year_entry.insert(0, str(datetime.now().year))
         self.month_entry.delete(0, "end")
         self.month_entry.insert(0, str(datetime.now().month))
-        self.mismatch_rows = []
         self.result_text.config(state="normal")
         self.result_text.delete("1.0", "end")
         self.result_text.config(state="disabled")
@@ -811,7 +824,6 @@ class App(BaseTk):
         pdf_duplicates.sort(key=lambda d: (normalize_date(d["date"]), d["name"]))
         pdf_blank_flag_rows.sort(key=lambda r: (normalize_date(r["date"]), r["name"]))
 
-        self.mismatch_rows = merged + date_error_rows
         range_label = f"{range_start}日〜{range_end}日"
         self._show_result(
             len(matched),
@@ -882,22 +894,6 @@ class App(BaseTk):
 
         self.blank_text.insert("1.0", "\n".join(blank_lines))
         self.blank_text.config(state="disabled")
-
-    def _save_csv(self):
-        if not self.mismatch_rows:
-            messagebox.showinfo("確認", "保存する不一致がありません(先に比較を実行してください)。")
-            return
-        path = filedialog.asksaveasfilename(
-            defaultextension=".csv", filetypes=[("CSV", "*.csv")], initialfile="mismatch.csv"
-        )
-        if not path:
-            return
-        with open(path, "w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.writer(f)
-            writer.writerow(["区分", "date", "name", "HUG", "日報", "PDF行番号", "受付日(誤記疑いのみ)", "空欄(日報〇のみ)"])
-            writer.writerows(self.mismatch_rows)
-        messagebox.showinfo("保存完了", f"{path} に保存しました。")
-
 
 if __name__ == "__main__":
     if not DND_AVAILABLE:

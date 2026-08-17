@@ -1,0 +1,19 @@
+total rows 431
+('店舗名', '区分', 'アドレス', 'レク費url', 'エリアurl', '欠席加算末尾', '欠席加算url')
+unique 区分 count 7
+['その他', 'ワークス', '埼玉群馬', '宇都宮', '栃木1', '栃木2', '茨城千葉']
+sample rows:
+('001ワークスA', 'ワークス', None)
+('001GC花見川', 'ワークス', None)
+('001GH宇都宮', '宇都宮', 'http://www.hug-globalkidsmethod.link/hug/wm/actual_cost_management.php')
+('001GP宇都宮', '宇都宮', 'http://www.hug-globalkidsmethod.link/hug/wm/actual_cost_management.php')
+('001GW新間々田', '栃木2', 'http://www.hug-globalkidsmethod06.link/hug/wm/actual_cost_management.php')
+('001KM岩曽', '宇都宮', 'http://www.hug-globalkidsmethod.link/hug/wm/actual_cost_management.php')
+('001SFサカフル宇都宮', '宇都宮', 'http://www.hug-globalkidsmethod.link/hug/wm/actual_cost_management.php')
+('001SF宇都宮', '宇都宮', 'http://www.hug-globalkidsmethod.link/hug/wm/actual_cost_management.php')
+('001THザスパキッズ', '埼玉群馬', 'http://www.hug-globalkidsmethod02.link/hug/wm/actual_cost_management.php')
+('002GH水戸', 'ワークス', None)
+('002GP埼玉', 'ワークス', None)
+('002GW宇都宮駅東', '宇都宮', 'http://www.hug-globalkidsmethod.link/hug/wm/actual_cost_management.php')
+('002KM御幸', '宇都宮', 'http://www.hug-globalkidsmethod.link/hug/wm/actual_cost_management.php')
+('002SFサカフル小山', '栃木2', 'http://www.hug-globalkidsmethod06.link/hug/wm/actual_cost_management.php')

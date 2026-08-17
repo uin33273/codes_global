@@ -244,8 +244,10 @@ class App(tk.Tk):
             selected = text_widget.get("sel.first", "sel.last")
         except tk.TclError:
             return
-        # Excelは行区切りに\r\nを必要とするため、\nのみだとセル内改行として扱われてしまう
-        selected = selected.replace("\r\n", "\n").replace("\n", "\r\n")
+        # 行区切りは\nのみにする。WindowsのクリップボードへはTkinterが\r\nへ
+        # 自動変換するため、ここで自前に\r\nへ変換すると二重変換(\r\r\n)に
+        # なり、Excel貼り付け時に1行おきの空白行が生じてしまう。
+        selected = selected.replace("\r\n", "\n")
         self.clipboard_clear()
         self.clipboard_append(selected)
 
@@ -346,6 +348,26 @@ class App(tk.Tk):
         except OSError as e:
             messagebox.showerror("開けませんでした", f"{href}\n{e}")
 
+    # ---------- 自動で閉じる通知ウィンドウ ----------
+
+    def _show_auto_close_info(self, title, message, ms=5000):
+        win = tk.Toplevel(self)
+        win.title(title)
+        win.transient(self)
+        win.resizable(False, False)
+
+        ttk.Label(win, text=message, padding=20).pack()
+        ttk.Button(win, text="閉じる", command=win.destroy).pack(pady=(0, 14))
+
+        win.update_idletasks()
+        x = self.winfo_rootx() + (self.winfo_width() - win.winfo_width()) // 2
+        y = self.winfo_rooty() + (self.winfo_height() - win.winfo_height()) // 2
+        win.geometry(f"+{x}+{y}")
+
+        win.after(ms, lambda: win.destroy() if win.winfo_exists() else None)
+        win.lift()
+        win.focus_force()
+
     # ---------- イベント ----------
 
     def _run_count(self):
@@ -405,12 +427,13 @@ class App(tk.Tk):
         if not self.day_counts:
             messagebox.showinfo("確認", "コピーする結果がありません(先に集計を実行してください)。")
             return
-        # \r\nで行を区切ることで、Excelへ貼り付けた際に日付・人数・「人」が
-        # それぞれ別セル、日ごとに別の行として分かれるようにする
-        rows = "\r\n".join(f"{day}日\t{count}\t人" for day, count in self.day_counts)
+        # 列はタブ、行は\nで区切る。WindowsのクリップボードへはTkinterが
+        # \nを\r\nへ自動変換するため、ここで\r\nを使うと二重変換(\r\r\n)になり
+        # Excel貼り付け時に1行おきの空白行が生じてしまう。
+        rows = "\n".join(f"{day}日\t{count}\t人" for day, count in self.day_counts)
         self.clipboard_clear()
         self.clipboard_append(rows)
-        messagebox.showinfo("コピー完了", "日別人数をコピーしました。Excelのセルを選んで貼り付けてください。")
+        self._show_auto_close_info("コピー完了", "日別人数をコピーしました。Excelのセルを選んで貼り付けてください。")
 
     def _save_csv(self):
         if not self.day_counts:
