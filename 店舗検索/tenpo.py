@@ -8,6 +8,8 @@
   検索欄の右にある「更新」ボタン、または Ctrl+R で再読込できる
 """
 
+import ctypes
+from ctypes import wintypes
 import tkinter as tk
 from tkinter import font as tkfont
 import openpyxl
@@ -20,9 +22,11 @@ NAME_COL = "店舗名"
 AREA_COL = "区分"
 
 WIN_WIDTH = 224   # 300px - 2cm(約76px, 96dpi換算)
-WIN_HEIGHT = 222  # 260px - 1cm(約38px, 96dpi換算)
+WIN_HEIGHT = 246  # 260px - 1cm(約38px, 96dpi換算) + 最前面スイッチ分
 MARGIN_RIGHT = 12
-MARGIN_BOTTOM = 60  # タスクバー分を避ける
+MARGIN_BOTTOM = 8  # タスクバーはワークエリア計算で自動的に避けるため、ここは隙間程度でよい
+
+SPI_GETWORKAREA = 0x0030
 
 
 class StoreData:
@@ -91,11 +95,8 @@ class App:
         self.root.title("店舗検索")
         self.root.geometry("{}x{}".format(WIN_WIDTH, WIN_HEIGHT))
         self.root.resizable(False, False)
-        self.root.attributes("-topmost", True)
-        try:
-            self.root.attributes("-toolwindow", True)  # Windows: 小さいタイトルバー
-        except tk.TclError:
-            pass
+        self.topmost_var = tk.BooleanVar(value=True)
+        self.root.attributes("-topmost", self.topmost_var.get())
 
         self._position_bottom_right()
 
@@ -107,13 +108,35 @@ class App:
         self.root.bind("<Control-r>", lambda e: self._reload())
         self.root.bind("<Escape>", lambda e: self.entry.delete(0, tk.END))
 
+    def _get_work_area(self):
+        rect = wintypes.RECT()
+        if ctypes.windll.user32.SystemParametersInfoW(
+            SPI_GETWORKAREA, 0, ctypes.byref(rect), 0
+        ):
+            return rect.left, rect.top, rect.right, rect.bottom
+        return 0, 0, self.root.winfo_screenwidth(), self.root.winfo_screenheight()
+
     def _position_bottom_right(self):
         self.root.update_idletasks()
-        sw = self.root.winfo_screenwidth()
-        sh = self.root.winfo_screenheight()
-        x = sw - WIN_WIDTH - MARGIN_RIGHT
-        y = sh - WIN_HEIGHT - MARGIN_BOTTOM
-        self.root.geometry("+{}+{}".format(max(x, 0), max(y, 0)))
+        work_left, work_top, work_right, work_bottom = self._get_work_area()
+
+        x = work_right - WIN_WIDTH - MARGIN_RIGHT
+        y = work_bottom - WIN_HEIGHT - MARGIN_BOTTOM
+        self.root.geometry("+{}+{}".format(max(x, work_left), max(y, work_top)))
+        self.root.update_idletasks()
+
+        # タイトルバー分の実際の高さを測り、ウィンドウ全体がワークエリア内に
+        # 収まるように補正する（タイトルバーの高さはOS/テーマ依存のため）
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
+            outer = wintypes.RECT()
+            ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(outer))
+            overflow = outer.bottom - work_bottom
+            if overflow > 0:
+                y = max(y - overflow, work_top)
+                self.root.geometry("+{}+{}".format(max(x, work_left), y))
+        except Exception:
+            pass
 
     def _build_ui(self):
         base_font = tkfont.nametofont("TkDefaultFont")
@@ -131,6 +154,17 @@ class App:
 
         reload_btn = tk.Button(top_frame, text="更新", width=4, command=self._reload)
         reload_btn.pack(side="left")
+
+        option_frame = tk.Frame(self.root)
+        option_frame.pack(fill="x", padx=6, pady=(0, 2))
+
+        topmost_check = tk.Checkbutton(
+            option_frame,
+            text="常に最前面",
+            variable=self.topmost_var,
+            command=self._toggle_topmost,
+        )
+        topmost_check.pack(side="left")
 
         self.status_var = tk.StringVar()
         status_label = tk.Label(
@@ -183,6 +217,9 @@ class App:
     def _copy_all(self):
         self.result_text.tag_add("sel", "1.0", "end")
         self.result_text.event_generate("<<Copy>>")
+
+    def _toggle_topmost(self):
+        self.root.attributes("-topmost", self.topmost_var.get())
 
     def _refresh_status(self):
         if self.data.error:
