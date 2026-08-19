@@ -36,7 +36,7 @@ LINK_TRAILING_CHARS = "。、,.)）」』\"'"
 
 TARGET_LABEL = "専門的支援実施加算"
 
-INSTRUCTIONS_FILENAME = "手順.txt"
+INSTRUCTIONS_FILENAME = "手順.md"
 
 DEFAULT_INSTRUCTIONS = """\
 ①ブラウザでエリアを選択してHUGを開く
@@ -305,39 +305,104 @@ class App(tk.Tk):
 
     def _open_instructions_editor(self):
         path = ensure_instructions_file()
+        import subprocess
         try:
-            os.startfile(path)
+            subprocess.Popen(["notepad.exe", path])
         except OSError as e:
             messagebox.showerror("編集に失敗しました", f"{path}\n{e}")
 
     def _insert_with_links(self, text_widget, content):
-        """本文中のURL・ファイルパスをクリック可能なリンクとして挿入する。"""
+        """Markdownの簡易記法(見出し・引用・コードブロック・太字・区切り線)をそれらしく
+        整形しつつ、URL・ファイルパスをクリック可能なリンクとして挿入する。"""
+        from tkinter import font as tkfont
+        md_inline_pattern = re.compile(
+            r"(?P<bold>\*\*(?P<boldtext>.+?)\*\*)"
+            rf"|(?P<code>`(?P<codetext>[^`\n]+)`)"
+            rf"|(?P<link>https?://{_LINK_CHAR}+|[A-Za-z]:\\{_LINK_CHAR}+|\\\\{_LINK_CHAR}+)"
+        )
+        try:
+            base_font = tkfont.nametofont(text_widget.cget("font"))
+            family, size = base_font.actual("family"), base_font.actual("size")
+        except Exception:
+            family, size = "TkDefaultFont", 10
+
         text_widget.tag_configure("hyperlink", foreground="#2f6f63", underline=True)
+        text_widget.tag_configure("md_h1", font=(family, size + 5, "bold"), spacing1=10, spacing3=6)
+        text_widget.tag_configure("md_h2", font=(family, size + 3, "bold"), spacing1=8, spacing3=4)
+        text_widget.tag_configure("md_h3", font=(family, size + 1, "bold"), spacing1=6, spacing3=3)
+        text_widget.tag_configure("md_bold", font=(family, size, "bold"))
+        text_widget.tag_configure("md_code", font=("Consolas", size), background="#eeeeee")
+        text_widget.tag_configure("md_code_block", font=("Consolas", size), background="#f2f2f2", lmargin1=14, lmargin2=14)
+        text_widget.tag_configure("md_quote", foreground="#4a4a4a", background="#f0efe6", lmargin1=20, lmargin2=20, spacing1=3, spacing3=3)
+        text_widget.tag_configure("md_hr", foreground="#aaaaaa")
+
         orig_cursor = text_widget.cget("cursor")
         link_index = 0
 
-        for line in content.splitlines(keepends=True):
+        def insert_inline(text_line, block_tags):
+            nonlocal link_index
             pos = 0
-            for m in LINK_PATTERN.finditer(line):
+            for m in md_inline_pattern.finditer(text_line):
                 start, end = m.span()
                 if start > pos:
-                    text_widget.insert("end", line[pos:start])
-
-                raw = m.group(1)
-                href = raw.rstrip(LINK_TRAILING_CHARS)
-                trailing = raw[len(href):]
-
-                tag_name = f"link_{link_index}"
-                link_index += 1
-                text_widget.insert("end", href, ("hyperlink", tag_name))
-                text_widget.tag_bind(tag_name, "<Button-1>", lambda e, href=href: self._open_link(href))
-                text_widget.tag_bind(tag_name, "<Enter>", lambda e: text_widget.config(cursor="hand2"))
-                text_widget.tag_bind(tag_name, "<Leave>", lambda e: text_widget.config(cursor=orig_cursor))
-
-                if trailing:
-                    text_widget.insert("end", trailing)
+                    text_widget.insert("end", text_line[pos:start], block_tags)
+                if m.group("bold"):
+                    text_widget.insert("end", m.group("boldtext"), block_tags + ("md_bold",))
+                elif m.group("code"):
+                    text_widget.insert("end", m.group("codetext"), block_tags + ("md_code",))
+                else:
+                    raw = m.group("link")
+                    href = raw.rstrip(LINK_TRAILING_CHARS)
+                    trailing = raw[len(href):]
+                    tag_name = f"link_{link_index}"
+                    link_index += 1
+                    text_widget.insert("end", href, block_tags + ("hyperlink", tag_name))
+                    text_widget.tag_bind(tag_name, "<Button-1>", lambda e, href=href: self._open_link(href))
+                    text_widget.tag_bind(tag_name, "<Enter>", lambda e: text_widget.config(cursor="hand2"))
+                    text_widget.tag_bind(tag_name, "<Leave>", lambda e: text_widget.config(cursor=orig_cursor))
+                    if trailing:
+                        text_widget.insert("end", trailing, block_tags)
                 pos = end
-            text_widget.insert("end", line[pos:])
+            text_widget.insert("end", text_line[pos:], block_tags)
+
+        in_code_block = False
+        for raw_line in content.splitlines():
+            stripped = raw_line.strip()
+
+            if stripped.startswith("```"):
+                in_code_block = not in_code_block
+                continue
+            if in_code_block:
+                text_widget.insert("end", raw_line + "\n", ("md_code_block",))
+                continue
+
+            if re.fullmatch(r"[-_*]{3,}", stripped):
+                text_widget.insert("end", "─" * 42 + "\n", ("md_hr",))
+                continue
+
+            m = re.match(r"^(#{1,6})\s+(.*)$", raw_line)
+            if m:
+                level = len(m.group(1))
+                tag = "md_h1" if level == 1 else "md_h2" if level == 2 else "md_h3"
+                insert_inline(m.group(2), (tag,))
+                text_widget.insert("end", "\n")
+                continue
+
+            m = re.match(r"^>\s?(.*)$", raw_line)
+            if m:
+                inner = m.group(1)
+                hm = re.match(r"^(#{1,6})\s+(.*)$", inner)
+                if hm:
+                    level = len(hm.group(1))
+                    tag = "md_h1" if level == 1 else "md_h2" if level == 2 else "md_h3"
+                    insert_inline(hm.group(2), ("md_quote", tag))
+                else:
+                    insert_inline(inner, ("md_quote",))
+                text_widget.insert("end", "\n")
+                continue
+
+            insert_inline(raw_line, ())
+            text_widget.insert("end", "\n")
 
     def _open_link(self, href):
         if href.startswith("http://") or href.startswith("https://"):

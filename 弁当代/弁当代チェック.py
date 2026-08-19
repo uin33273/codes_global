@@ -35,7 +35,7 @@ REF_PATH = r"C:\Users\owner\Desktop\works\保管書類\店舗リスト\table_HHH
 
 # ============================== 仕事の進め方 / 取説 ==============================
 
-INSTRUCTIONS_FILENAME = "手順.txt"
+INSTRUCTIONS_FILENAME = "手順.md"
 
 DEFAULT_INSTRUCTIONS = """\
 ※この手順は変更されることがあります。内容を直接書き換えたい場合は
@@ -73,8 +73,9 @@ def read_instructions():
 
 def open_instructions_editor():
     path = ensure_instructions_file()
+    import subprocess
     try:
-        os.startfile(path)
+        subprocess.Popen(["notepad.exe", path])
     except OSError as e:
         messagebox.showerror("編集に失敗しました", f"{path}\n{e}")
 
@@ -89,29 +90,100 @@ def open_link(href):
         messagebox.showerror("開けませんでした", f"{href}\n{e}")
 
 
+_MD_INLINE_PATTERN = re.compile(
+    r"(?P<bold>\*\*(?P<boldtext>.+?)\*\*)"
+    rf"|(?P<code>`(?P<codetext>[^`\n]+)`)"
+    rf"|(?P<link>https?://{_LINK_CHAR}+|[A-Za-z]:\\{_LINK_CHAR}+|\\\\{_LINK_CHAR}+)"
+)
+
+
 def insert_instructions_with_links(text_widget, content):
+    """Markdownの簡易記法(見出し・引用・コードブロック・太字・区切り線)をそれらしく
+    整形しつつ、URL・ファイルパスをクリック可能なリンクとして挿入する。"""
+    from tkinter import font as tkfont
+    try:
+        base_font = tkfont.nametofont(text_widget.cget("font"))
+        family, size = base_font.actual("family"), base_font.actual("size")
+    except Exception:
+        family, size = "TkDefaultFont", 10
+
     text_widget.tag_configure("hyperlink", foreground="#2f6f63", underline=True)
+    text_widget.tag_configure("md_h1", font=(family, size + 5, "bold"), spacing1=10, spacing3=6)
+    text_widget.tag_configure("md_h2", font=(family, size + 3, "bold"), spacing1=8, spacing3=4)
+    text_widget.tag_configure("md_h3", font=(family, size + 1, "bold"), spacing1=6, spacing3=3)
+    text_widget.tag_configure("md_bold", font=(family, size, "bold"))
+    text_widget.tag_configure("md_code", font=("Consolas", size), background="#eeeeee")
+    text_widget.tag_configure("md_code_block", font=("Consolas", size), background="#f2f2f2", lmargin1=14, lmargin2=14)
+    text_widget.tag_configure("md_quote", foreground="#4a4a4a", background="#f0efe6", lmargin1=20, lmargin2=20, spacing1=3, spacing3=3)
+    text_widget.tag_configure("md_hr", foreground="#aaaaaa")
+
     orig_cursor = text_widget.cget("cursor")
     link_index = 0
-    for line in content.splitlines(keepends=True):
+
+    def insert_inline(text_line, block_tags):
+        nonlocal link_index
         pos = 0
-        for m in LINK_PATTERN.finditer(line):
+        for m in _MD_INLINE_PATTERN.finditer(text_line):
             start, end = m.span()
             if start > pos:
-                text_widget.insert("end", line[pos:start])
-            raw = m.group(1)
-            href = raw.rstrip(LINK_TRAILING_CHARS)
-            trailing = raw[len(href):]
-            tag_name = f"link_{link_index}"
-            link_index += 1
-            text_widget.insert("end", href, ("hyperlink", tag_name))
-            text_widget.tag_bind(tag_name, "<Button-1>", lambda e, href=href: open_link(href))
-            text_widget.tag_bind(tag_name, "<Enter>", lambda e: text_widget.config(cursor="hand2"))
-            text_widget.tag_bind(tag_name, "<Leave>", lambda e: text_widget.config(cursor=orig_cursor))
-            if trailing:
-                text_widget.insert("end", trailing)
+                text_widget.insert("end", text_line[pos:start], block_tags)
+            if m.group("bold"):
+                text_widget.insert("end", m.group("boldtext"), block_tags + ("md_bold",))
+            elif m.group("code"):
+                text_widget.insert("end", m.group("codetext"), block_tags + ("md_code",))
+            else:
+                raw = m.group("link")
+                href = raw.rstrip(LINK_TRAILING_CHARS)
+                trailing = raw[len(href):]
+                tag_name = f"link_{link_index}"
+                link_index += 1
+                text_widget.insert("end", href, block_tags + ("hyperlink", tag_name))
+                text_widget.tag_bind(tag_name, "<Button-1>", lambda e, href=href: open_link(href))
+                text_widget.tag_bind(tag_name, "<Enter>", lambda e: text_widget.config(cursor="hand2"))
+                text_widget.tag_bind(tag_name, "<Leave>", lambda e: text_widget.config(cursor=orig_cursor))
+                if trailing:
+                    text_widget.insert("end", trailing, block_tags)
             pos = end
-        text_widget.insert("end", line[pos:])
+        text_widget.insert("end", text_line[pos:], block_tags)
+
+    in_code_block = False
+    for raw_line in content.splitlines():
+        stripped = raw_line.strip()
+
+        if stripped.startswith("```"):
+            in_code_block = not in_code_block
+            continue
+        if in_code_block:
+            text_widget.insert("end", raw_line + "\n", ("md_code_block",))
+            continue
+
+        if re.fullmatch(r"[-_*]{3,}", stripped):
+            text_widget.insert("end", "─" * 42 + "\n", ("md_hr",))
+            continue
+
+        m = re.match(r"^(#{1,6})\s+(.*)$", raw_line)
+        if m:
+            level = len(m.group(1))
+            tag = "md_h1" if level == 1 else "md_h2" if level == 2 else "md_h3"
+            insert_inline(m.group(2), (tag,))
+            text_widget.insert("end", "\n")
+            continue
+
+        m = re.match(r"^>\s?(.*)$", raw_line)
+        if m:
+            inner = m.group(1)
+            hm = re.match(r"^(#{1,6})\s+(.*)$", inner)
+            if hm:
+                level = len(hm.group(1))
+                tag = "md_h1" if level == 1 else "md_h2" if level == 2 else "md_h3"
+                insert_inline(hm.group(2), ("md_quote", tag))
+            else:
+                insert_inline(inner, ("md_quote",))
+            text_widget.insert("end", "\n")
+            continue
+
+        insert_inline(raw_line, ())
+        text_widget.insert("end", "\n")
 
 
 def show_instructions_dialog():
@@ -491,7 +563,7 @@ def apply_hug_data_to_excel(xlsx_path, shop_display, shop_full_name, year, month
 
 def run_hug_paste_tool(root):
     win = tk.Toplevel(root)
-    win.title("HUGテキスト転記")
+    win.title("弁当代HUGテキスト転記")
     win.geometry("560x520")
 
     tk.Label(
@@ -511,6 +583,16 @@ def run_hug_paste_tool(root):
         if selected:
             path_var.set(selected)
 
+    def open_target_file():
+        target = path_var.get()
+        if not target or target == PATH_PLACEHOLDER:
+            messagebox.showwarning("未選択", "転記先のエクセルが選択されていません。", parent=win)
+            return
+        try:
+            os.startfile(target)
+        except OSError as e:
+            messagebox.showerror("開けませんでした", f"{target}\n{e}", parent=win)
+
     path_row = ttk.Frame(win)
     path_row.pack(fill="x", padx=14, pady=(0, 6))
     ttk.Label(path_row, text="転記先:").pack(side="left")
@@ -518,6 +600,7 @@ def run_hug_paste_tool(root):
         side="left", padx=(6, 6), fill="x", expand=True
     )
     ttk.Button(path_row, text="変更", command=choose_target_file).pack(side="right")
+    ttk.Button(path_row, text="開く", command=open_target_file).pack(side="right", padx=(0, 6))
 
     choose_target_file()
 
@@ -618,10 +701,10 @@ def run_hug_paste_tool(root):
 
 def show_mode_launcher(root):
     """起動直後にどちらの作業を行うか選ばせる。"""
-    result = {"mode": "aggregate"}
+    result = {"mode": "exit"}
     win = tk.Toplevel(root)
     win.title("メニュー")
-    win.geometry("360x170")
+    win.geometry("360x210")
     win.attributes("-topmost", True)
 
     tk.Label(win, text="行う作業を選んでください", pady=10).pack()
@@ -632,8 +715,9 @@ def show_mode_launcher(root):
 
     ttk.Button(win, text="① 弁当代を集計する", command=lambda: choose("aggregate")).pack(fill="x", padx=30, pady=6)
     ttk.Button(win, text="② 弁当代エクセルにHUGデータ連結", command=lambda: choose("hug")).pack(fill="x", padx=30, pady=6)
+    ttk.Button(win, text="終了", command=lambda: choose("exit")).pack(fill="x", padx=30, pady=(14, 6))
 
-    win.protocol("WM_DELETE_WINDOW", lambda: choose("aggregate"))
+    win.protocol("WM_DELETE_WINDOW", lambda: choose("exit"))
     win.lift()
     win.focus_force()
     root.wait_window(win)
@@ -706,334 +790,336 @@ def main():
     root.withdraw()
     root.attributes("-topmost", True)
 
-    mode = show_mode_launcher(root)
-    if mode == "hug":
-        run_hug_paste_tool(root)
-        root.destroy()
-        sys.exit()
-
-    url_map, category_map = load_url_map()
-    url_lookup      = {norm(k): v for k, v in url_map.items()}       # 照合用（「店」除去済みキー→url）
-    category_lookup = {norm(k): v for k, v in category_map.items()}  # 照合用（「店」除去済みキー→区分）
-
-    now = datetime.now()
-    if now.month == 1:
-        default_ym = f"{now.year - 1}12"
-    else:
-        default_ym = f"{now.year}{now.month - 1:02d}"
-
-    target_ym = simpledialog.askstring(
-        "入力", "抽出する年月を入力してください\n（例: 202604）",
-        initialvalue=default_ym, parent=root
-    )
-    if not target_ym: return
-
-    folder_path = filedialog.askdirectory(title="弁当代エクセルのフォルダを選択してください")
-    if not folder_path: return
-
-    target_files = [f for f in os.listdir(folder_path)
-                    if (f.endswith(".xlsx") or f.endswith(".xls")) and not f.startswith("~$")]
-
-    combined_list = []
-    zero_shops    = []
-    found_shop_names = set()  # 処理済み店舗名を記録
-
-    progress_window = tk.Toplevel(root)
-    progress_window.title("データ集計中...")
-    progress_window.geometry("450x150")
-    progress_window.attributes("-topmost", True)
-    label = tk.Label(progress_window, text="準備中...", wraplength=400)
-    label.pack(pady=10)
-    pb = ttk.Progressbar(progress_window, orient="horizontal", length=350, mode="determinate")
-    pb.pack(pady=5)
-    pb["maximum"] = len(target_files)
-
-    for i, filename in enumerate(target_files):
-        pb["value"] = i + 1
-        label.config(text=f"処理中 ({i+1}/{len(target_files)}):\n{filename}")
-        progress_window.update()
-
-        file_path = os.path.join(folder_path, filename)
-        try:
-            xl = pd.ExcelFile(file_path, engine='openpyxl')
-            if target_ym not in xl.sheet_names: continue
-
-            wb_in = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
-            ws_in = wb_in[target_ym]
-            shop_name = ws_in["B3"].value if ws_in["B3"].value else None
-            if shop_name:
-                shop_name = str(shop_name).replace("メソッド", "").replace("パーク", "")
-            if not shop_name:
-                import re
-                m = re.search(r'【(.+?)】', filename)
-                shop_name = m.group(1) if m else "名称不明"
-            wb_in.close()
-
-            # 店舗名の「ヶ」→「ケ」表記ゆれを統一する
-            shop_name = fix_kana(shop_name)
-            # ファイル名（出力表示用）の「ヶ」→「ケ」表記ゆれを統一する
-            disp_filename = fix_kana(filename)
-
-            found_shop_names.add(norm(shop_name))        # norm済みで登録
-            found_shop_names.add(str(shop_name).strip()) # 元の名前でも登録
-
-            df_raw = pd.read_excel(file_path, sheet_name=target_ym, header=None, engine='openpyxl')
-
-            target_row_idx, target_col_idx, date_col_idx = None, None, None
-            for r_idx, row in df_raw.iterrows():
-                row_str_list = [str(x).replace(" ", "").replace("　", "") for x in row]
-                found_col = next((c_idx for c_idx, val in enumerate(row_str_list) if "弁当注文人数" in val), None)
-                if found_col is not None:
-                    target_row_idx, target_col_idx = r_idx, found_col
-                    date_col_idx = next((c_idx for c_idx, val in enumerate(row_str_list) if "日付" in val), None)
-                    break
-
-            if target_row_idx is None: continue
-
-            df = pd.read_excel(file_path, sheet_name=target_ym, header=target_row_idx, engine='openpyxl')
-            col_name_bento = df.columns[target_col_idx]
-            col_name_date  = df.columns[date_col_idx] if date_col_idx is not None else "日付"
-
-            def is_text_entry(x):
-                if pd.isna(x): return False
-                if isinstance(x, (int, float)): return False
-                s = str(x).strip()
-                if s == "": return False
-                try:
-                    float(s)
-                    return False
-                except ValueError:
-                    return True
-
-            mask_text  = df[col_name_bento].apply(is_text_entry)
-            df_text    = df[mask_text].copy()
-
-            df['_bento_num'] = pd.to_numeric(df[col_name_bento], errors='coerce')
-            total        = df['_bento_num'].sum()
-            mask_numeric = df['_bento_num'] > 0
-            df_numeric   = df[mask_numeric].copy()
-            df_numeric['_is_symbol'] = False
-
-            resolved = df_text[col_name_bento].apply(resolve_text_bento_count)
-            df_text['_bento_num'] = resolved.apply(lambda t: t[0])
-            df_text['_is_symbol'] = resolved.apply(lambda t: t[1])
-            df_text[col_name_bento] = df_text['_bento_num']
-            df_numeric[col_name_bento] = df_numeric['_bento_num']
-
-            df_filtered = pd.concat([df_numeric, df_text]).drop_duplicates()
-
-            if df_filtered.empty and total <= 0:
-                zero_shops.append({
-                    'ファイル名': disp_filename,  # 表記ゆれ修正済みのファイル名を使用
-                    '店舗名': shop_name,           # 表記ゆれ修正済みの店舗名を使用
-                    '区分': lookup_shop(shop_name, category_lookup),
-                    'url': to_file_link(file_path)
-                })
-                continue
-
-            if not df_filtered.empty:
-                df_filtered = df_filtered.copy()
-                df_filtered['ファイル名'] = disp_filename  # 表記ゆれ修正済みのファイル名を使用
-                df_filtered['店舗名']    = shop_name       # 表記ゆれ修正済みの店舗名を使用
-                df_filtered['区分']      = lookup_shop(shop_name, category_lookup)
-                df_filtered['ファイルリンク'] = to_file_link(file_path)
-                df_filtered['sort_date'] = pd.to_datetime(df_filtered[col_name_date], errors='coerce')
-
-                res_df = df_filtered[['ファイル名', '区分', '店舗名', col_name_date, col_name_bento, 'ファイルリンク', 'sort_date', '_is_symbol']]
-                res_df.columns = ['ファイル名', '区分', '店舗名', '日付', '弁当注文人数', 'ファイルリンク', 'sort_date', '_is_symbol']
-
-                # 同じ日付が複数行ある場合は1行にまとめ、弁当注文人数は合算する
-                def _sum_bento(s):
-                    nums = pd.to_numeric(s, errors='coerce')
-                    if nums.notna().all():
-                        total = nums.sum()
-                        return int(total) if float(total).is_integer() else total
-                    return "+".join(str(v) for v in s)
-
-                res_df = res_df.groupby('日付', as_index=False, sort=False).agg({
-                    'ファイル名':     'first',
-                    '区分':         'first',
-                    '店舗名':       'first',
-                    '弁当注文人数':  _sum_bento,
-                    'ファイルリンク': 'first',
-                    'sort_date':    'first',
-                    '_is_symbol':   'any',
-                })
-                res_df = res_df[['ファイル名', '区分', '店舗名', '日付', '弁当注文人数', 'ファイルリンク', 'sort_date', '_is_symbol']]
-
-                combined_list.append(res_df)
-            else:
-                zero_shops.append({
-                    'ファイル名': filename,
-                    '店舗名': shop_name,
-                    '区分': lookup_shop(shop_name, category_lookup),
-                    'url': to_file_link(file_path)
-                })
-
-        except:
+    while True:
+        mode = show_mode_launcher(root)
+        if mode == "exit":
+            break
+        if mode == "hug":
+            run_hug_paste_tool(root)
             continue
 
-    progress_window.destroy()
+        url_map, category_map = load_url_map()
+        url_lookup      = {norm(k): v for k, v in url_map.items()}       # 照合用（「店」除去済みキー→url）
+        category_lookup = {norm(k): v for k, v in category_map.items()}  # 照合用（「店」除去済みキー→区分）
 
-    # リストシートにあるがファイルが存在しない店舗
-    missing_shops = [
-        {'ファイル名': '', '店舗名': name, '区分': category_lookup.get(norm(name), ""), 'url': url_lookup.get(norm(name), "")}
-        for name in url_map
-        if norm(name) not in found_shop_names
-        and name not in found_shop_names
-    ]
-
-    if combined_list or zero_shops or missing_shops:
-        folder_name = os.path.basename(os.path.normpath(folder_path)).replace("　", "").replace(" ", "")
-        output_name = f"{folder_name}集計表.xlsx"
-        save_path = os.path.join(os.path.expanduser("~"), "Downloads", output_name)
-
-        if combined_list:
-            final_df = pd.concat(combined_list, ignore_index=True)
-            final_df = final_df.sort_values(by=['区分', '店舗名', 'sort_date']).reset_index(drop=True)
-
-            def format_md(x):
-                try:
-                    if pd.isna(x): return ""
-                    return f"{x.month}/{x.day}"
-                except:
-                    return str(x)
-
-            final_df['日付'] = final_df['sort_date'].apply(format_md)
-            final_df = final_df.drop(columns=['sort_date'])
-
-            # 「①」等の記号扱いで0にした行を、後でExcel保存後に黄色くするための一覧
-            bento_symbol_flags = final_df['_is_symbol'].tolist()
-            final_df = final_df.drop(columns=['_is_symbol'])
-
-            final_df.insert(0, '【注文あり店舗】ファイルリンク', final_df['ファイルリンク'])
-            final_df = final_df.drop(columns=['ファイルリンク'])
+        now = datetime.now()
+        if now.month == 1:
+            default_ym = f"{now.year - 1}12"
         else:
-            final_df = pd.DataFrame(columns=['【注文あり店舗】ファイルリンク', 'ファイル名', '区分', '店舗名', '日付', '弁当注文人数'])
-            bento_symbol_flags = []
+            default_ym = f"{now.year}{now.month - 1:02d}"
 
-        final_df.to_excel(save_path, index=False)
+        target_ym = simpledialog.askstring(
+            "入力", "抽出する年月を入力してください\n（例: 202604）",
+            initialvalue=default_ym, parent=root
+        )
+        if not target_ym: continue
 
-        wb = openpyxl.load_workbook(save_path)
-        ws = wb.active
+        folder_path = filedialog.askdirectory(title="弁当代エクセルのフォルダを選択してください")
+        if not folder_path: continue
 
-        # A列をハイパーリンクに変換
-        hyperlink_font = Font(color="0563C1", underline="single")
-        for row_idx in range(2, ws.max_row + 1):
-            cell = ws.cell(row=row_idx, column=1)
-            url_val = cell.value
-            if url_val and str(url_val).startswith(("http", "file:")):
-                cell.hyperlink = url_val
-                cell.value     = url_val
-                cell.font      = hyperlink_font
+        target_files = [f for f in os.listdir(folder_path)
+                        if (f.endswith(".xlsx") or f.endswith(".xls")) and not f.startswith("~$")]
 
-        # 縞模様（店舗名が同じ間は同じ色にする）
-        fill_gray = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
-        current_fill = False
-        last_shop = None
-        for row_idx in range(2, ws.max_row + 1):
-            shop_val = str(ws.cell(row=row_idx, column=4).value)
-            if shop_val != last_shop:
-                current_fill = not current_fill
-                last_shop = shop_val
-            if current_fill:
-                for col_idx in range(1, 7):
-                    ws.cell(row=row_idx, column=col_idx).fill = fill_gray
+        combined_list = []
+        zero_shops    = []
+        found_shop_names = set()  # 処理済み店舗名を記録
 
-        # 「①」等の記号扱いで人数を0にした行は、弁当注文人数セル(F列)を黄色にして目立たせる
-        fill_bento_symbol = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
-        for offset, is_symbol in enumerate(bento_symbol_flags):
-            if is_symbol:
-                ws.cell(row=2 + offset, column=6).fill = fill_bento_symbol
+        progress_window = tk.Toplevel(root)
+        progress_window.title("データ集計中...")
+        progress_window.geometry("450x150")
+        progress_window.attributes("-topmost", True)
+        label = tk.Label(progress_window, text="準備中...", wraplength=400)
+        label.pack(pady=10)
+        pb = ttk.Progressbar(progress_window, orient="horizontal", length=350, mode="determinate")
+        pb.pack(pady=5)
+        pb["maximum"] = len(target_files)
 
-        ws.column_dimensions['A'].width  = 4
-        ws.column_dimensions['B'].hidden = True
-        ws.column_dimensions['F'].width  = 4
+        for i, filename in enumerate(target_files):
+            pb["value"] = i + 1
+            label.config(text=f"処理中 ({i+1}/{len(target_files)}):\n{filename}")
+            progress_window.update()
 
-        # HUGテキスト転記機能で使う列のヘッダーを先に用意しておく
-        ws.cell(row=1, column=7, value="判定")
-        ws.cell(row=1, column=8, value="HUG")
-        ws.cell(row=1, column=9, value="HUG小計")
+            file_path = os.path.join(folder_path, filename)
+            try:
+                xl = pd.ExcelFile(file_path, engine='openpyxl')
+                if target_ym not in xl.sheet_names: continue
 
-        # 末尾セクション共通処理
-        def append_section_with_url(ws, shops, header_texts, header_color, row_color, url_key='url', name_key='店舗名', category_key='区分'):
-            blank_row = ws.max_row + 2
-            fill_h = PatternFill(start_color=header_color, end_color=header_color, fill_type="solid")
-            fill_r = PatternFill(start_color=row_color,    end_color=row_color,    fill_type="solid")
-            bold   = Font(bold=True)
-            for col_idx, text in enumerate(header_texts, start=1):
-                cell = ws.cell(row=blank_row, column=col_idx, value=text)
-                cell.fill = fill_h
-                cell.font = bold
-            for shop in shops:
-                blank_row += 1
-                url_val  = shop.get(url_key, "")
-                url_cell = ws.cell(row=blank_row, column=1)
-                url_cell.fill = fill_r
+                wb_in = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
+                ws_in = wb_in[target_ym]
+                shop_name = ws_in["B3"].value if ws_in["B3"].value else None
+                if shop_name:
+                    shop_name = str(shop_name).replace("メソッド", "").replace("パーク", "")
+                if not shop_name:
+                    import re
+                    m = re.search(r'【(.+?)】', filename)
+                    shop_name = m.group(1) if m else "名称不明"
+                wb_in.close()
+
+                # 店舗名の「ヶ」→「ケ」表記ゆれを統一する
+                shop_name = fix_kana(shop_name)
+                # ファイル名（出力表示用）の「ヶ」→「ケ」表記ゆれを統一する
+                disp_filename = fix_kana(filename)
+
+                found_shop_names.add(norm(shop_name))        # norm済みで登録
+                found_shop_names.add(str(shop_name).strip()) # 元の名前でも登録
+
+                df_raw = pd.read_excel(file_path, sheet_name=target_ym, header=None, engine='openpyxl')
+
+                target_row_idx, target_col_idx, date_col_idx = None, None, None
+                for r_idx, row in df_raw.iterrows():
+                    row_str_list = [str(x).replace(" ", "").replace("　", "") for x in row]
+                    found_col = next((c_idx for c_idx, val in enumerate(row_str_list) if "弁当注文人数" in val), None)
+                    if found_col is not None:
+                        target_row_idx, target_col_idx = r_idx, found_col
+                        date_col_idx = next((c_idx for c_idx, val in enumerate(row_str_list) if "日付" in val), None)
+                        break
+
+                if target_row_idx is None: continue
+
+                df = pd.read_excel(file_path, sheet_name=target_ym, header=target_row_idx, engine='openpyxl')
+                col_name_bento = df.columns[target_col_idx]
+                col_name_date  = df.columns[date_col_idx] if date_col_idx is not None else "日付"
+
+                def is_text_entry(x):
+                    if pd.isna(x): return False
+                    if isinstance(x, (int, float)): return False
+                    s = str(x).strip()
+                    if s == "": return False
+                    try:
+                        float(s)
+                        return False
+                    except ValueError:
+                        return True
+
+                mask_text  = df[col_name_bento].apply(is_text_entry)
+                df_text    = df[mask_text].copy()
+
+                df['_bento_num'] = pd.to_numeric(df[col_name_bento], errors='coerce')
+                total        = df['_bento_num'].sum()
+                mask_numeric = df['_bento_num'] > 0
+                df_numeric   = df[mask_numeric].copy()
+                df_numeric['_is_symbol'] = False
+
+                resolved = df_text[col_name_bento].apply(resolve_text_bento_count)
+                df_text['_bento_num'] = resolved.apply(lambda t: t[0])
+                df_text['_is_symbol'] = resolved.apply(lambda t: t[1])
+                df_text[col_name_bento] = df_text['_bento_num']
+                df_numeric[col_name_bento] = df_numeric['_bento_num']
+
+                df_filtered = pd.concat([df_numeric, df_text]).drop_duplicates()
+
+                if df_filtered.empty and total <= 0:
+                    zero_shops.append({
+                        'ファイル名': disp_filename,  # 表記ゆれ修正済みのファイル名を使用
+                        '店舗名': shop_name,           # 表記ゆれ修正済みの店舗名を使用
+                        '区分': lookup_shop(shop_name, category_lookup),
+                        'url': to_file_link(file_path)
+                    })
+                    continue
+
+                if not df_filtered.empty:
+                    df_filtered = df_filtered.copy()
+                    df_filtered['ファイル名'] = disp_filename  # 表記ゆれ修正済みのファイル名を使用
+                    df_filtered['店舗名']    = shop_name       # 表記ゆれ修正済みの店舗名を使用
+                    df_filtered['区分']      = lookup_shop(shop_name, category_lookup)
+                    df_filtered['ファイルリンク'] = to_file_link(file_path)
+                    df_filtered['sort_date'] = pd.to_datetime(df_filtered[col_name_date], errors='coerce')
+
+                    res_df = df_filtered[['ファイル名', '区分', '店舗名', col_name_date, col_name_bento, 'ファイルリンク', 'sort_date', '_is_symbol']]
+                    res_df.columns = ['ファイル名', '区分', '店舗名', '日付', '弁当注文人数', 'ファイルリンク', 'sort_date', '_is_symbol']
+
+                    # 同じ日付が複数行ある場合は1行にまとめ、弁当注文人数は合算する
+                    def _sum_bento(s):
+                        nums = pd.to_numeric(s, errors='coerce')
+                        if nums.notna().all():
+                            total = nums.sum()
+                            return int(total) if float(total).is_integer() else total
+                        return "+".join(str(v) for v in s)
+
+                    res_df = res_df.groupby('日付', as_index=False, sort=False).agg({
+                        'ファイル名':     'first',
+                        '区分':         'first',
+                        '店舗名':       'first',
+                        '弁当注文人数':  _sum_bento,
+                        'ファイルリンク': 'first',
+                        'sort_date':    'first',
+                        '_is_symbol':   'any',
+                    })
+                    res_df = res_df[['ファイル名', '区分', '店舗名', '日付', '弁当注文人数', 'ファイルリンク', 'sort_date', '_is_symbol']]
+
+                    combined_list.append(res_df)
+                else:
+                    zero_shops.append({
+                        'ファイル名': filename,
+                        '店舗名': shop_name,
+                        '区分': lookup_shop(shop_name, category_lookup),
+                        'url': to_file_link(file_path)
+                    })
+
+            except:
+                continue
+
+        progress_window.destroy()
+
+        # リストシートにあるがファイルが存在しない店舗
+        missing_shops = [
+            {'ファイル名': '', '店舗名': name, '区分': category_lookup.get(norm(name), ""), 'url': url_lookup.get(norm(name), "")}
+            for name in url_map
+            if norm(name) not in found_shop_names
+            and name not in found_shop_names
+        ]
+
+        if combined_list or zero_shops or missing_shops:
+            folder_name = os.path.basename(os.path.normpath(folder_path)).replace("　", "").replace(" ", "")
+            output_name = f"{folder_name}集計表.xlsx"
+            save_path = os.path.join(os.path.expanduser("~"), "Downloads", output_name)
+
+            if combined_list:
+                final_df = pd.concat(combined_list, ignore_index=True)
+                final_df = final_df.sort_values(by=['区分', '店舗名', 'sort_date']).reset_index(drop=True)
+
+                def format_md(x):
+                    try:
+                        if pd.isna(x): return ""
+                        return f"{x.month}/{x.day}"
+                    except:
+                        return str(x)
+
+                final_df['日付'] = final_df['sort_date'].apply(format_md)
+                final_df = final_df.drop(columns=['sort_date'])
+
+                # 「①」等の記号扱いで0にした行を、後でExcel保存後に黄色くするための一覧
+                bento_symbol_flags = final_df['_is_symbol'].tolist()
+                final_df = final_df.drop(columns=['_is_symbol'])
+
+                final_df.insert(0, '【注文あり店舗】ファイルリンク', final_df['ファイルリンク'])
+                final_df = final_df.drop(columns=['ファイルリンク'])
+            else:
+                final_df = pd.DataFrame(columns=['【注文あり店舗】ファイルリンク', 'ファイル名', '区分', '店舗名', '日付', '弁当注文人数'])
+                bento_symbol_flags = []
+
+            final_df.to_excel(save_path, index=False)
+
+            wb = openpyxl.load_workbook(save_path)
+            ws = wb.active
+
+            # A列をハイパーリンクに変換
+            hyperlink_font = Font(color="0563C1", underline="single")
+            for row_idx in range(2, ws.max_row + 1):
+                cell = ws.cell(row=row_idx, column=1)
+                url_val = cell.value
                 if url_val and str(url_val).startswith(("http", "file:")):
-                    url_cell.hyperlink = url_val
-                    url_cell.value     = url_val
-                    url_cell.font      = Font(color="0563C1", underline="single")
-                col = 2
-                if 'ファイル名' in shop:
-                    ws.cell(row=blank_row, column=col, value=shop['ファイル名']).fill = fill_r
-                    col += 1
-                if category_key in shop:
-                    ws.cell(row=blank_row, column=col, value=shop[category_key]).fill = fill_r
-                    col += 1
-                ws.cell(row=blank_row, column=col, value=shop[name_key]).fill = fill_r
+                    cell.hyperlink = url_val
+                    cell.value     = url_val
+                    cell.font      = hyperlink_font
 
-        if zero_shops:
-            zero_shops = sorted(zero_shops, key=lambda s: (s.get('区分', ''), s.get('店舗名', '')))
-            append_section_with_url(
-                ws, zero_shops,
-                ["【注文なし店舗】ファイルリンク", "ファイル名", "区分", "店舗名"],
-                "FFFF00", "FFE0E0"
-            )
-#【ファイルなし店舗】レク費urlリストにあるがファイルが存在しない店舗のうち、店舗名が類似しているものを除外（例：先頭5文字で照合）
-        if missing_shops:
-            upper_prefixes = {
-                half_upper(str(n).strip()[:5])
-                for n in (set(final_df['店舗名']) | {s['店舗名'] for s in zero_shops})
-                if len(str(n).strip()) >= 5
-            }
-            missing_shops = [
-                s for s in missing_shops
-                if half_upper(str(s['店舗名']).strip()[:5]) not in upper_prefixes
-            ]
+            # 縞模様（店舗名が同じ間は同じ色にする）
+            fill_gray = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+            current_fill = False
+            last_shop = None
+            for row_idx in range(2, ws.max_row + 1):
+                shop_val = str(ws.cell(row=row_idx, column=4).value)
+                if shop_val != last_shop:
+                    current_fill = not current_fill
+                    last_shop = shop_val
+                if current_fill:
+                    for col_idx in range(1, 7):
+                        ws.cell(row=row_idx, column=col_idx).fill = fill_gray
 
-        if missing_shops:
-            missing_shops = sorted(missing_shops, key=lambda s: (s.get('区分', ''), s.get('店舗名', '')))
-            append_section_with_url(
-                ws, missing_shops,
-                ["【ファイルなし店舗】レク費url", "ファイル名", "区分", "店舗名"],
-                "FFC000", "FFE8CC"
-            )
+            # 「①」等の記号扱いで人数を0にした行は、弁当注文人数セル(F列)を黄色にして目立たせる
+            fill_bento_symbol = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+            for offset, is_symbol in enumerate(bento_symbol_flags):
+                if is_symbol:
+                    ws.cell(row=2 + offset, column=6).fill = fill_bento_symbol
 
-        # C,D,E列を内容に合わせて幅自動調整
-        for col_letter, col_idx in [('C', 3), ('D', 4), ('E', 5)]:
-            max_len = max(
-                (len(str(ws.cell(row=r, column=col_idx).value))
-                 for r in range(2, ws.max_row + 1)
-                 if ws.cell(row=r, column=col_idx).value not in (None, "")),
-                default=8
-            )
-            ws.column_dimensions[col_letter].width = max_len + 2
+            ws.column_dimensions['A'].width  = 4
+            ws.column_dimensions['B'].hidden = True
+            ws.column_dimensions['F'].width  = 4
 
-        # ヘッダー行：折り返して全体を表示し、高さは自動調整のため明示指定しない
-        for cell in ws[1]:
-            cell.alignment = Alignment(wrap_text=True, vertical='center')
+            # 弁当代HUGテキスト転記機能で使う列のヘッダーを先に用意しておく
+            ws.cell(row=1, column=7, value="判定")
+            ws.cell(row=1, column=8, value="HUG")
+            ws.cell(row=1, column=9, value="HUG小計")
 
-        wb.save(save_path)
+            # 末尾セクション共通処理
+            def append_section_with_url(ws, shops, header_texts, header_color, row_color, url_key='url', name_key='店舗名', category_key='区分'):
+                blank_row = ws.max_row + 2
+                fill_h = PatternFill(start_color=header_color, end_color=header_color, fill_type="solid")
+                fill_r = PatternFill(start_color=row_color,    end_color=row_color,    fill_type="solid")
+                bold   = Font(bold=True)
+                for col_idx, text in enumerate(header_texts, start=1):
+                    cell = ws.cell(row=blank_row, column=col_idx, value=text)
+                    cell.fill = fill_h
+                    cell.font = bold
+                for shop in shops:
+                    blank_row += 1
+                    url_val  = shop.get(url_key, "")
+                    url_cell = ws.cell(row=blank_row, column=1)
+                    url_cell.fill = fill_r
+                    if url_val and str(url_val).startswith(("http", "file:")):
+                        url_cell.hyperlink = url_val
+                        url_cell.value     = url_val
+                        url_cell.font      = Font(color="0563C1", underline="single")
+                    col = 2
+                    if 'ファイル名' in shop:
+                        ws.cell(row=blank_row, column=col, value=shop['ファイル名']).fill = fill_r
+                        col += 1
+                    if category_key in shop:
+                        ws.cell(row=blank_row, column=col, value=shop[category_key]).fill = fill_r
+                        col += 1
+                    ws.cell(row=blank_row, column=col, value=shop[name_key]).fill = fill_r
 
-        shop_list_name = "弁当代チェック_店舗一覧.xlsx"
-        shop_list_path = os.path.join(os.path.expanduser("~"), "Downloads", shop_list_name)
-        save_shop_list_excel(final_df, zero_shops, missing_shops, shop_list_path)
+            if zero_shops:
+                zero_shops = sorted(zero_shops, key=lambda s: (s.get('区分', ''), s.get('店舗名', '')))
+                append_section_with_url(
+                    ws, zero_shops,
+                    ["【注文なし店舗】ファイルリンク", "ファイル名", "区分", "店舗名"],
+                    "FFFF00", "FFE0E0"
+                )
+    #【ファイルなし店舗】レク費urlリストにあるがファイルが存在しない店舗のうち、店舗名が類似しているものを除外（例：先頭5文字で照合）
+            if missing_shops:
+                upper_prefixes = {
+                    half_upper(str(n).strip()[:5])
+                    for n in (set(final_df['店舗名']) | {s['店舗名'] for s in zero_shops})
+                    if len(str(n).strip()) >= 5
+                }
+                missing_shops = [
+                    s for s in missing_shops
+                    if half_upper(str(s['店舗名']).strip()[:5]) not in upper_prefixes
+                ]
 
-        messagebox.showinfo("完了", f"保存しました：\n{output_name}\n{shop_list_name}")
-        os.startfile(shop_list_path)
-    else:
-        messagebox.showwarning("結果", "データが見つかりませんでした。")
+            if missing_shops:
+                missing_shops = sorted(missing_shops, key=lambda s: (s.get('区分', ''), s.get('店舗名', '')))
+                append_section_with_url(
+                    ws, missing_shops,
+                    ["【ファイルなし店舗】レク費url", "ファイル名", "区分", "店舗名"],
+                    "FFC000", "FFE8CC"
+                )
+
+            # C,D,E列を内容に合わせて幅自動調整
+            for col_letter, col_idx in [('C', 3), ('D', 4), ('E', 5)]:
+                max_len = max(
+                    (len(str(ws.cell(row=r, column=col_idx).value))
+                     for r in range(2, ws.max_row + 1)
+                     if ws.cell(row=r, column=col_idx).value not in (None, "")),
+                    default=8
+                )
+                ws.column_dimensions[col_letter].width = max_len + 2
+
+            # ヘッダー行：折り返して全体を表示し、高さは自動調整のため明示指定しない
+            for cell in ws[1]:
+                cell.alignment = Alignment(wrap_text=True, vertical='center')
+
+            wb.save(save_path)
+
+            shop_list_name = "弁当代チェック_店舗一覧.xlsx"
+            shop_list_path = os.path.join(os.path.expanduser("~"), "Downloads", shop_list_name)
+            save_shop_list_excel(final_df, zero_shops, missing_shops, shop_list_path)
+
+            messagebox.showinfo("完了", f"保存しました：\n{output_name}\n{shop_list_name}")
+            os.startfile(shop_list_path)
+        else:
+            messagebox.showwarning("結果", "データが見つかりませんでした。")
 
     root.destroy()
     sys.exit()
