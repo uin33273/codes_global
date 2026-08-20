@@ -1,0 +1,363 @@
+<style>
+  :root {
+    --bg: #eef2f0; --surface: #ffffff; --surface-2: #f4f7f5;
+    --ink: #1c2624; --ink-soft: #4b5a57; --ink-faint: #7c8985;
+    --rule: #d2dad6; --rule-strong: #b6c2bd;
+    --accent: #2f6f63; --accent-soft: #dceae6;
+    --warn: #a3611f; --warn-soft: #f4e4d3;
+    --danger: #a23b3b; --danger-soft: #f3dede;
+    --good: #2e7d46; --good-soft: #dceedf;
+    --shadow: 0 1px 2px rgba(28, 38, 36, 0.06), 0 8px 24px rgba(28, 38, 36, 0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12181a; --surface: #1b2325; --surface-2: #202a2c; --ink: #e7eeec;
+      --ink-soft: #a9b7b3; --ink-faint: #798683; --rule: #2b3638; --rule-strong: #3a4749;
+      --accent: #62c2ac; --accent-soft: #1e3733;
+      --warn: #e2a466; --warn-soft: #3a2b18;
+      --danger: #e08787; --danger-soft: #3a2020;
+      --good: #7fcb93; --good-soft: #1e3324;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12181a; --surface: #1b2325; --surface-2: #202a2c; --ink: #e7eeec;
+    --ink-soft: #a9b7b3; --ink-faint: #798683; --rule: #2b3638; --rule-strong: #3a4749;
+    --accent: #62c2ac; --accent-soft: #1e3733;
+    --warn: #e2a466; --warn-soft: #3a2b18;
+    --danger: #e08787; --danger-soft: #3a2020;
+    --good: #7fcb93; --good-soft: #1e3324;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #eef2f0; --surface: #ffffff; --surface-2: #f4f7f5; --ink: #1c2624;
+    --ink-soft: #4b5a57; --ink-faint: #7c8985; --rule: #d2dad6; --rule-strong: #b6c2bd;
+    --accent: #2f6f63; --accent-soft: #dceae6;
+    --warn: #a3611f; --warn-soft: #f4e4d3;
+    --danger: #a23b3b; --danger-soft: #f3dede;
+    --good: #2e7d46; --good-soft: #dceedf;
+    --shadow: 0 1px 2px rgba(28, 38, 36, 0.06), 0 8px 24px rgba(28, 38, 36, 0.05);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", "Noto Sans JP", sans-serif;
+    line-height: 1.75; -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 920px; margin: 0 auto; padding: 56px 24px 96px; }
+  .eyebrow {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.14em; color: var(--accent);
+    text-transform: uppercase; margin: 0 0 10px;
+  }
+  h1 { font-size: clamp(24px, 4vw, 32px); font-weight: 800; margin: 0 0 8px; letter-spacing: 0.01em; text-wrap: balance; }
+  .path {
+    font-family: "Cascadia Code", "Consolas", ui-monospace, monospace; font-size: 12.5px;
+    color: var(--ink-soft); background: var(--surface-2); border: 1px solid var(--rule);
+    border-radius: 6px; padding: 3px 8px; display: inline-block; word-break: break-all;
+  }
+  .lede { margin: 18px 0 0; color: var(--ink-soft); font-size: 15.5px; max-width: 68ch; }
+  header.top { border-bottom: 1px solid var(--rule); padding-bottom: 28px; margin-bottom: 44px; }
+  .toc { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .toc a {
+    font-size: 12.5px; font-weight: 700; color: var(--accent); text-decoration: none;
+    border: 1px solid var(--rule); background: var(--surface); padding: 5px 11px; border-radius: 999px;
+  }
+  .tool-block { margin: 58px 0; }
+  .tool-block:first-of-type { margin-top: 0; }
+  .tool-head { margin-bottom: 20px; }
+  .tool-num { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); margin: 0 0 6px; }
+  .tool-title { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
+  .tool-desc { color: var(--ink-soft); font-size: 14px; max-width: 68ch; margin: 0; }
+  .diagram-frame {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 20px 18px 14px;
+  }
+  .diagram-scroll { overflow-x: auto; }
+  .diagram-scroll pre.mermaid { margin: 0; min-width: 600px; }
+  .diagram-caption { font-size: 12.5px; color: var(--ink-faint); margin: 10px 2px 0; }
+  .note {
+    background: var(--warn-soft); color: var(--warn); border-radius: 8px; padding: 10px 14px;
+    font-size: 13.5px; margin: 12px 0 0; max-width: 70ch; line-height: 1.65;
+  }
+  table.spec {
+    width: 100%; border-collapse: collapse; font-size: 13.5px; background: var(--surface);
+    border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow);
+    margin-top: 8px;
+  }
+  table.spec th {
+    text-align: left; font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700; padding: 10px 14px; background: var(--surface-2);
+    border-bottom: 1px solid var(--rule);
+  }
+  table.spec td { padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  table.spec tr:last-child td { border-bottom: none; }
+  table.spec code {
+    font-family: "Cascadia Code", "Consolas", ui-monospace, monospace; font-size: 12px;
+    background: var(--surface-2); border: 1px solid var(--rule); border-radius: 4px; padding: 1px 5px;
+  }
+  .stage-chip {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent);
+    font-weight: 700; font-size: 12px; margin-right: 8px;
+  }
+  hr.divider { border: none; border-top: 1px solid var(--rule); margin: 52px 0 0; }
+  footer.foot { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--rule); font-size: 12.5px; color: var(--ink-faint); }
+</style>
+
+<div class="page">
+
+  <header class="top">
+    <p class="eyebrow">動作フロー解説</p>
+    <h1>算定区分後工程一括 動作フロー</h1>
+    <p class="path">算定区分後工程分\算定区分後工程一括.py</p>
+    <p class="lede">
+      算定区分01〜05を1つの窓口から順番に呼び出す司令塔スクリプト。
+      CSVダウンロード後の「Excel変換→分割→統合→店名紐づけ→最終データ作成」までを
+      1本のパイプラインとして実行する。
+    </p>
+    <nav class="toc">
+      <a href="#overview">全体パイプライン</a>
+      <a href="#s01">01 変換・振り分け</a>
+      <a href="#s02">02 分割・ZIP化</a>
+      <a href="#s03">03 統合</a>
+      <a href="#s04">04 店名紐づけ</a>
+      <a href="#s05">05 最終データ作成</a>
+      <a href="#files">ファイルの受け渡し一覧</a>
+    </nav>
+  </header>
+
+  <div class="tool-block" id="overview">
+    <div class="tool-head">
+      <p class="tool-num">Overview</p>
+      <h2 class="tool-title">全体パイプライン(司令塔)</h2>
+      <p class="tool-desc">確認ダイアログのあと、01〜05を順番に呼び出す。各ステージはToplevelウィンドウとして開き、閉じるまで次のステージへは進まない。</p>
+    </div>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    Start(["起動"]) --> Confirm{"運営用Excelの\n準備完了を確認"}
+    Confirm -- いいえ --> End1(["終了"])
+    Confirm -- はい --> S1["01: CSV→Excel変換・地域振り分け"]
+    S1 --> S2["02: 利用サービスで分割(放/児)＋ZIP化"]
+    S2 --> S3["03: 複数Excel/ZIPを1ファイルに統合"]
+    S3 --> S4["04: 店名をマスターと照合・紐づけ"]
+    S4 --> S5["05: LOOKUP数式付きの最終データ作成"]
+    S5 --> Cleanup["一時フォルダを削除\n(excel_results / downroads_temp)"]
+    Cleanup --> Done(["完了メッセージを表示"])
+    S1 -. 例外発生 .-> Err(["エラー詳細をダイアログ表示して中断"])
+    S2 -. 例外発生 .-> Err
+    S3 -. 例外発生 .-> Err
+    S4 -. 例外発生 .-> Err
+    S5 -. 例外発生 .-> Err
+</pre>
+      </div>
+      <p class="diagram-caption">
+        03・04・05はファイル選択ダイアログをキャンセルしても、パイプライン自体は止まらず次のステージへ進む(そのステージの処理をスキップするだけ)。
+      </p>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="tool-block" id="s01">
+    <div class="tool-head">
+      <p class="tool-num"><span class="stage-chip">01</span>Stage 1</p>
+      <h2 class="tool-title">算定区分01.py — CSV→Excel変換・地域振り分け</h2>
+    </div>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    A["Downloads、または\n算定区分データ配下の最新年月フォルダから\n振り分け元を探索"] --> B["番号フォルダ(01〜06)、または\n既に振り分け済みのフォルダを起点に採用"]
+    B --> C["地域ごとの振り分け先フォルダを作成\n(栃木グループ／栃木以外グループ)"]
+    C --> D["番号フォルダ(01〜06)を\n地域フォルダへ移動"]
+    D --> E["振り分け済みフォルダ内の\nCSVを列挙"]
+    E --> F{"1件も\nないか"}
+    F -- はい --> Warn(["警告を表示して終了"])
+    F -- いいえ --> G["1件ずつ処理"]
+    G --> H["文字コードを判定して読込み\n(cp932→utf-8-sig→shift_jis)"]
+    H --> I["列名の前後空白を削除"]
+    I --> J["同名のExcel(.xlsx)として保存し\n元のCSVを削除"]
+    J --> Next{"全件\n処理済みか"}
+    Next -- いいえ --> G
+    Next -- はい --> Done(["完了メッセージを表示し 02 へ"])
+</pre>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="tool-block" id="s02">
+    <div class="tool-head">
+      <p class="tool-num"><span class="stage-chip">02</span>Stage 2</p>
+      <h2 class="tool-title">算定区分02.py — 利用サービスで分割・合計行追加・ZIP化</h2>
+    </div>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    A["01と同じ方法で\n振り分け済みフォルダを再探索"] --> B["各地域フォルダのExcelのうち\nまだ「_放/_児」でないものを抽出"]
+    B --> C{"対象が\n1件もないか"}
+    C -- はい --> Warn(["警告を表示して終了"])
+    C -- いいえ --> D["1件ずつ処理"]
+    D --> E["「総計」「＊集計」行を除外"]
+    E --> F["「利用サービス」列が\n「放」で始まる行 / 「児」で始まる行を\nそれぞれ抽出"]
+    F --> G["抽出した各グループに\n数値列の合計行を追加"]
+    G --> H["<元名>_放.xlsx / <元名>_児.xlsx\nとして保存し、元のExcelを削除"]
+    H --> Next{"全件\n処理済みか"}
+    Next -- いいえ --> D
+    Next -- はい --> K["振り分け済みフォルダ全体を\nDownloads\\converted_excels_分割済み.zip\nに圧縮"]
+    K --> Done(["完了メッセージを表示し 03 へ"])
+</pre>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="tool-block" id="s03">
+    <div class="tool-head">
+      <p class="tool-num"><span class="stage-chip">03</span>Stage 3</p>
+      <h2 class="tool-title">算定区分03.py — 複数ファイルを1つに統合</h2>
+    </div>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    A["「分割済みZIPまたはExcel」を\n複数選択するダイアログを表示"] --> B{"選択したか"}
+    B -- キャンセル --> Skip(["ウィンドウを閉じ、そのまま 04 へ"])
+    B -- はい --> C["ZIPは展開、Excelはそのままコピーして\n一時フォルダへ集約"]
+    C --> D{"Excelファイルが\n1件もないか"}
+    D -- はい --> Warn(["警告を表示して終了"])
+    D -- いいえ --> E["1件ずつ処理"]
+    E --> F["ファイル名から「店」を除去"]
+    F --> G["最終行(総計行)から\n稼働数・算定区分1〜3・延長支援・\n専門実施・送迎加算・欠席加算を抽出"]
+    G --> Next{"全件\n処理済みか"}
+    Next -- いいえ --> E
+    Next -- はい --> H["1つのExcelにまとめて\nDownloads\\anyfiles_to_1files.xlsx\nとして保存"]
+    H --> Cleanup["一時フォルダを削除"]
+    Cleanup --> Done(["完了メッセージを表示し 04 へ"])
+</pre>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="tool-block" id="s04">
+    <div class="tool-head">
+      <p class="tool-num"><span class="stage-chip">04</span>Stage 4</p>
+      <h2 class="tool-title">算定区分04.py — 店名をマスターと照合・紐づけ</h2>
+    </div>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    A["1つ目: anyfiles_to_1files.xlsx を選択"] --> A2{"選択したか"}
+    A2 -- キャンセル --> Skip(["ウィンドウを閉じ、そのまま 05 へ"])
+    A2 -- はい --> B["2つ目: 算定区分・加算等集計表\n(運営用).xlsxを選択"]
+    B --> B2{"選択したか"}
+    B2 -- キャンセル --> Skip
+    B2 -- はい --> C["「稼働数」シートから\n店舗名マスター一覧を取得"]
+    C --> D["各行の店名を正規化し\n(数字/記号/「店」等を除去)\n児=P・放=Mの接尾辞を推定"]
+    D --> E{"マスターと\n一意に一致するか"}
+    E -- 一致 --> F["自動で紐づけ"]
+    E -- "0件 または 複数一致" --> G["手動確認リストに追加"]
+    F --> Next{"全行\n判定済みか"}
+    G --> Next
+    Next -- いいえ --> D
+    Next -- はい --> H{"手動確認リストが\n1件以上あるか"}
+    H -- あり --> I["候補検索ボックス付きの\n手動紐づけ画面を表示\n(地名入力→矢印キー→Enterで確定)"]
+    I --> J["「修正内容をExcelに保存して次へ」"]
+    H -- なし --> J
+    J --> K["「2-スプレッドシートの店名へ紐づけ.xlsx」\nとして保存"]
+    K --> Done(["完了メッセージを表示し 05 へ"])
+</pre>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="tool-block" id="s05">
+    <div class="tool-head">
+      <p class="tool-num"><span class="stage-chip">05</span>Stage 5</p>
+      <h2 class="tool-title">算定区分05.py — LOOKUP数式付きの最終データ作成</h2>
+    </div>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    A["1つ目: 算定区分・加算等集計表\n(運営用).xlsxを選択"] --> A2{"選択したか"}
+    A2 -- キャンセル --> Skip(["ウィンドウを閉じて終了"])
+    A2 -- はい --> B["2つ目: 2-スプレッドシートの\n店名へ紐づけ.xlsxを選択"]
+    B --> B2{"選択したか"}
+    B2 -- キャンセル --> Skip
+    B2 -- はい --> C["「稼働数」シート(4行目以降)から\n店舗名の一覧を取得"]
+    C --> D["紐づけ済みファイルのシート名を\n「店舗名紐づけ」に変更"]
+    D --> E["新規「LOOKUP」シートを作成し\nA列に店舗名一覧を入力"]
+    E --> F["B列以降に、店舗名紐づけシートを\n参照するXLOOKUP数式を列ごとに埋め込む"]
+    F --> G["Downloads\\3-spreadsheetへ\nコピペ用データ.xlsx として保存"]
+    G --> Done(["完了メッセージを表示"])
+</pre>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="tool-block" id="files">
+    <div class="tool-head">
+      <p class="tool-num">Reference</p>
+      <h2 class="tool-title">ステージ間のファイルの受け渡し</h2>
+      <p class="tool-desc">各ステージが実際に読み書きするファイルの対応表。03〜05は自動連携ではなく、毎回ファイル選択ダイアログで指定する点に注意。</p>
+    </div>
+    <table class="spec">
+      <thead>
+        <tr><th style="width:8%">Stage</th><th style="width:38%">入力</th><th>出力</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="stage-chip">01</span></td>
+          <td>Downloads内の番号フォルダ(01〜06)のCSV</td>
+          <td>地域振り分け後のExcel(.xlsx)。元CSVは削除</td>
+        </tr>
+        <tr>
+          <td><span class="stage-chip">02</span></td>
+          <td>01が地域フォルダへ振り分けたExcel</td>
+          <td>各Excelを<code>_放</code>/<code>_児</code>に分割 ＋ <code>Downloads\converted_excels_分割済み.zip</code></td>
+        </tr>
+        <tr>
+          <td><span class="stage-chip">03</span></td>
+          <td>(手動選択)02が作ったZIPまたはExcel</td>
+          <td><code>Downloads\anyfiles_to_1files.xlsx</code></td>
+        </tr>
+        <tr>
+          <td><span class="stage-chip">04</span></td>
+          <td>(手動選択)<code>anyfiles_to_1files.xlsx</code> ＋ 算定区分・加算等集計表(運営用).xlsx</td>
+          <td><code>2-スプレッドシートの店名へ紐づけ.xlsx</code>(1つ目のファイルと同じフォルダに保存)</td>
+        </tr>
+        <tr>
+          <td><span class="stage-chip">05</span></td>
+          <td>(手動選択)算定区分・加算等集計表(運営用).xlsx ＋ <code>2-スプレッドシートの店名へ紐づけ.xlsx</code></td>
+          <td><code>Downloads\3-spreadsheetへコピペ用データ.xlsx</code></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="note">
+      03・04・05はファイル名を自動で覚えていないため、途中でウィンドウを閉じたり別のファイルを選んだりすると、想定外の組み合わせで処理が進んでしまう点に注意。
+    </p>
+  </div>
+
+  <footer class="foot">
+    完了後、Downloads\excel_results と Downloads\downroads_temp(存在する場合)は自動で削除される。
+  </footer>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>

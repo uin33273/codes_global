@@ -1,3 +1,5 @@
+#このスクリプトは、指定されたフォルダ内の画像ファイルを店舗リストに基づいて自動的にリネームするためのツールです。店舗リストはExcelファイルから読み込まれ、各ファイル名の先頭にエリア情報を付加してリネームします。自動判定できない場合は、ユーザーに店舗名を選択させるダイアログが表示されます。
+
 import os
 import re
 import unicodedata
@@ -10,6 +12,8 @@ LIST_PATH = r"C:\Users\owner\Desktop\works\保管書類\店舗リスト\table_HH
 LIST_SHEET = "リスト"
 NAME_COL = "店舗名"   # 例: 001GH宇都宮
 AREA_COL = "区分"     # エリアとして扱う列
+
+# 「仕事の進め方」は同じフォルダのメニュー.py側で、レクカレメニューを開く前に表示する
 
 FRONT_PATTERN = re.compile(r'^(\d+)(.*)$')
 CODE_PREFIX_PATTERN = re.compile(r'^[A-Za-z]+')  # 店舗名先頭のコード(GH/GP/KM等)
@@ -134,11 +138,11 @@ def ask_store_for_file(root, filename, stores, folder, initial_query=""):
     display_list = []  # (raw_name, area)
 
     def refresh(*_args):
-        query = search_var.get().strip()
+        query = normalize_text(search_var.get().strip())
         listbox.delete(0, tk.END)
         display_list.clear()
         for _num3, _rest, area, raw in stores:
-            if query == "" or query in str(raw) or (area and query in str(area)):
+            if query == "" or query in normalize_text(str(raw)) or (area and query in normalize_text(str(area))):
                 display_list.append((raw, area))
         for raw, area in display_list:
             listbox.insert(tk.END, f"{raw}   [{area}]")
@@ -312,7 +316,7 @@ def main():
     while True:
         print("[5/7] フォルダ選択ダイアログを表示します(画面裏に隠れていないか確認してください)", flush=True)
         root.attributes("-topmost", True)
-        folder = filedialog.askdirectory(title="画像が入っているフォルダを選択してください", parent=root)
+        folder = filedialog.askdirectory(title="エリアを追加する店舗のレクカレ画像フォルダを選択してください。", parent=root)
         root.attributes("-topmost", False)
         print(f"[6/7] 選択されたフォルダ: {folder!r}", flush=True)
         if not folder:
@@ -341,7 +345,7 @@ def main():
         progress_dialog.destroy()
         print("リネーム処理完了", flush=True)
 
-    lines = [f"リネーム完了: {len(renames)} 件"]
+    lines = ["エリアを記入しました", f"リネーム完了: {len(renames)} 件"]
     if renames:
         lines.append("")
         lines.extend(f"  {old} -> {new}" for old, new in renames)

@@ -1,0 +1,284 @@
+<style>
+  :root {
+    --bg: #eef2f0; --surface: #ffffff; --surface-2: #f4f7f5;
+    --ink: #1c2624; --ink-soft: #4b5a57; --ink-faint: #7c8985;
+    --rule: #d2dad6; --rule-strong: #b6c2bd;
+    --accent: #2f6f63; --accent-soft: #dceae6;
+    --warn: #a3611f; --warn-soft: #f4e4d3;
+    --danger: #a23b3b; --danger-soft: #f3dede;
+    --good: #2e7d46; --good-soft: #dceedf;
+    --shadow: 0 1px 2px rgba(28, 38, 36, 0.06), 0 8px 24px rgba(28, 38, 36, 0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12181a; --surface: #1b2325; --surface-2: #202a2c; --ink: #e7eeec;
+      --ink-soft: #a9b7b3; --ink-faint: #798683; --rule: #2b3638; --rule-strong: #3a4749;
+      --accent: #62c2ac; --accent-soft: #1e3733;
+      --warn: #e2a466; --warn-soft: #3a2b18;
+      --danger: #e08787; --danger-soft: #3a2020;
+      --good: #7fcb93; --good-soft: #1e3324;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12181a; --surface: #1b2325; --surface-2: #202a2c; --ink: #e7eeec;
+    --ink-soft: #a9b7b3; --ink-faint: #798683; --rule: #2b3638; --rule-strong: #3a4749;
+    --accent: #62c2ac; --accent-soft: #1e3733;
+    --warn: #e2a466; --warn-soft: #3a2b18;
+    --danger: #e08787; --danger-soft: #3a2020;
+    --good: #7fcb93; --good-soft: #1e3324;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #eef2f0; --surface: #ffffff; --surface-2: #f4f7f5; --ink: #1c2624;
+    --ink-soft: #4b5a57; --ink-faint: #7c8985; --rule: #d2dad6; --rule-strong: #b6c2bd;
+    --accent: #2f6f63; --accent-soft: #dceae6;
+    --warn: #a3611f; --warn-soft: #f4e4d3;
+    --danger: #a23b3b; --danger-soft: #f3dede;
+    --good: #2e7d46; --good-soft: #dceedf;
+    --shadow: 0 1px 2px rgba(28, 38, 36, 0.06), 0 8px 24px rgba(28, 38, 36, 0.05);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", "Noto Sans JP", sans-serif;
+    line-height: 1.75; -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 900px; margin: 0 auto; padding: 56px 24px 96px; }
+  .eyebrow {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.14em; color: var(--accent);
+    text-transform: uppercase; margin: 0 0 10px;
+  }
+  h1 { font-size: clamp(24px, 4vw, 32px); font-weight: 800; margin: 0 0 8px; letter-spacing: 0.01em; text-wrap: balance; }
+  .path {
+    font-family: "Cascadia Code", "Consolas", ui-monospace, monospace; font-size: 12.5px;
+    color: var(--ink-soft); background: var(--surface-2); border: 1px solid var(--rule);
+    border-radius: 6px; padding: 3px 8px; display: inline-block; word-break: break-all;
+  }
+  .lede { margin: 18px 0 0; color: var(--ink-soft); font-size: 15.5px; max-width: 68ch; }
+  header.top { border-bottom: 1px solid var(--rule); padding-bottom: 28px; margin-bottom: 44px; }
+  .toc { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .toc a {
+    font-size: 12.5px; font-weight: 700; color: var(--accent); text-decoration: none;
+    border: 1px solid var(--rule); background: var(--surface); padding: 5px 11px; border-radius: 999px;
+  }
+  section.diagram-section { margin: 40px 0; }
+  h3.diagram-title { font-size: 16px; font-weight: 700; margin: 0 0 4px; }
+  p.diagram-sub { color: var(--ink-soft); font-size: 14px; margin: 0 0 16px; max-width: 68ch; }
+  .diagram-frame {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 20px 18px 14px;
+  }
+  .diagram-scroll { overflow-x: auto; }
+  .diagram-scroll pre.mermaid { margin: 0; min-width: 620px; }
+  .diagram-caption { font-size: 12.5px; color: var(--ink-faint); margin: 10px 2px 0; }
+  table.legend {
+    width: 100%; border-collapse: collapse; font-size: 14px; background: var(--surface);
+    border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow);
+    margin-top: 14px;
+  }
+  table.legend th {
+    text-align: left; font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700; padding: 10px 14px; background: var(--surface-2);
+    border-bottom: 1px solid var(--rule);
+  }
+  table.legend td { padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  table.legend tr:last-child td { border-bottom: none; }
+  .swatch {
+    display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-right: 8px;
+    vertical-align: -2px; border: 1px solid var(--rule-strong);
+  }
+  footer.foot { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--rule); font-size: 12.5px; color: var(--ink-faint); }
+</style>
+
+<div class="page">
+
+  <header class="top">
+    <p class="eyebrow">動作フロー解説</p>
+    <h1>弁当代チェック 動作フロー</h1>
+    <p class="path">弁当代\弁当代チェック.py</p>
+    <p class="lede">
+      指定フォルダ内の各店舗のExcelから「弁当注文人数」列を集計し、店舗マスタと突き合わせて
+      注文あり／注文なし／ファイルなし の3種類に分けて1つのExcelにまとめるツール。
+      さらに、HUG「実費負担実績表」のテキストを貼り付けて、集計表のG〜I列に
+      判定・内訳を転記する機能も持つ。
+    </p>
+    <nav class="toc">
+      <a href="#launch">起動時のモード選択</a>
+      <a href="#overview">①集計モードの全体の流れ</a>
+      <a href="#detail">①1ファイルごとの判定ロジック</a>
+      <a href="#hug">②HUGテキスト転記の流れ</a>
+      <a href="#legend">出力ファイルの色分け</a>
+    </nav>
+  </header>
+
+  <section class="diagram-section" id="launch">
+    <h3 class="diagram-title">起動時のモード選択</h3>
+    <p class="diagram-sub">起動直後は「仕事の進め方」ダイアログを閉じるとメニューが出て、①集計／②HUG転記のどちらかを選ぶ。</p>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    S(["起動"]) --> Console["コンソールウインドウを最小化"]
+    Console --> Guide["「仕事の進め方」ダイアログを表示\n(閉じるまで先に進めない)"]
+    Guide --> Menu{"メニューでどちらを選ぶか"}
+    Menu -- "①弁当代を集計する" --> Mode1["集計モードへ\n(下図「①集計モードの全体の流れ」)"]
+    Menu -- "②HUGテキストをG列へ転記する" --> Mode2["HUG転記モードへ\n(下図「②HUGテキスト転記の流れ」)"]
+</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="diagram-section" id="overview">
+    <h3 class="diagram-title">①集計モードの全体の流れ</h3>
+    <p class="diagram-sub">店舗マスタの読み込みから、最終Excelの装飾・末尾セクション追加までの流れ。</p>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    Start(["集計モード開始"]) --> Master["店舗マスタ(table_HHHL共通店舗一覧m.xlsm)を読込み\n店舗名→URL／区分の対応表を作成"]
+    Master --> YM["対象年月を入力(例: 202604)"]
+    YM --> YMCheck{"入力したか"}
+    YMCheck -- キャンセル --> End1(["終了"])
+    YMCheck -- はい --> Folder["集計対象のExcelがある\nフォルダを選択"]
+    Folder --> FolderCheck{"選択したか"}
+    FolderCheck -- キャンセル --> End1
+    FolderCheck -- はい --> List["フォルダ内の.xlsx/.xlsを列挙\n(一時ファイル ~$ は除外)"]
+    List --> Loop["進捗バー付きで1ファイルずつ判定\n(下図「1ファイルごとの判定ロジック」)"]
+    Loop --> Classify{"各ファイルの結果"}
+    Classify -- 注文あり --> Combined["combined_list に追加"]
+    Classify -- 注文なし --> Zero["zero_shops に追加"]
+    Classify -- "対象シートなし／エラー" --> SkipF["スキップ"]
+    Combined --> Next{"全ファイル\n処理済みか"}
+    Zero --> Next
+    SkipF --> Next
+    Next -- いいえ --> Loop
+    Next -- はい --> Missing["マスタにはあるが\nどのファイルにも出てこなかった\n店舗を抽出(missing_shops)"]
+    Missing --> AnyData{"3つのリストの\nいずれかにデータがあるか"}
+    AnyData -- なし --> WarnEnd(["「データが見つかりません」\nと表示して終了"])
+    AnyData -- あり --> Build["注文ありデータを区分→店舗名→日付順に並べ替え\nDownloadsに「フォルダ名集計表.xlsx」として保存"]
+    Build --> Deco["A列をハイパーリンク化\n店舗ごとに縞模様の背景色を適用\nG「判定」/H「HUG」/I「HUG小計」の見出しも用意"]
+    Deco --> ZeroSec["【注文なし店舗】セクションを\n黄色ヘッダーで末尾に追加"]
+    ZeroSec --> Dedup["先頭5文字が既出店舗と一致する\n類似名の店舗をmissing_shopsから除外"]
+    Dedup --> MissSec["【ファイルなし店舗】セクションを\nオレンジヘッダーで末尾に追加"]
+    MissSec --> Format["列幅を自動調整し\nヘッダー行を折り返し表示に"]
+    Format --> Done(["完了メッセージを表示し\nファイルを開く\n(→②HUG転記で使う集計表になる)"])
+</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="diagram-section" id="detail">
+    <h3 class="diagram-title">①1ファイルごとの判定ロジック</h3>
+    <p class="diagram-sub">上図「1ファイルずつ判定」の中身。店舗名の特定から、注文あり/なしの分岐まで。</p>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    A["ファイルを開く"] --> B{"対象年月の\nシートがあるか"}
+    B -- ない --> SkipF(["このファイルはスキップ"])
+    B -- ある --> C["セルB3から店舗名を取得\n(「メソッド」「パーク」は除去)"]
+    C --> D{"B3が空か"}
+    D -- はい --> E["ファイル名の「【店舗名】」\nパターンから推測\n(なければ「名称不明」)"]
+    D -- いいえ --> F
+    E --> F["店舗名・ファイル名の表記ゆれ\n(「ヶ」→「ケ」)を統一"]
+    F --> G["「弁当注文人数」列と\n「日付」列を見出し文字列で検索"]
+    G --> H{"見出しが\n見つかったか"}
+    H -- いいえ --> SkipF
+    H -- はい --> I["見出し行をヘッダーとして\nデータを再読込み"]
+    I --> J["数値でない・空でもない\n記入(文字扱い)の行を抽出\n例:「放５児２」「児童２名」"]
+    J --> J2["文字扱いの行は、含まれる数値を\nすべて合計して人数に変換\n(例: 放５児２ → 7)"]
+    J2 --> K["数値かつ0より大きい行を抽出"]
+    K --> L["両方を結合し重複除去"]
+    L --> M{"結合結果が空 かつ\n合計が0以下か"}
+    M -- はい --> Zero(["注文なし店舗として記録"])
+    M -- いいえ --> Combined(["注文ありデータとして記録"])
+</pre>
+      </div>
+      <p class="diagram-caption">店舗名の照合は「店」の有無や前後の空白を無視した正規化キーで行うため、表記ゆれがあっても同一店舗として扱われる。数値が1つも含まれない文字(例:「欠席」)はそのまま文字として残る。</p>
+    </div>
+  </section>
+
+  <section class="diagram-section" id="hug">
+    <h3 class="diagram-title">②HUGテキスト転記の流れ</h3>
+    <p class="diagram-sub">HUG「実費負担実績表」ページのテキストを、①で作った集計表のG〜I列に転記する処理。</p>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    Start2(["HUG転記モード開始"]) --> Pick["転記先の集計表(〇〇集計表.xlsx)を選択"]
+    Pick --> Paste["HUGページのテキストを貼り付けて\n「転記」ボタンを押す"]
+    Paste --> Parse["テキストから施設名・年月・\n日別の弁当【児】【放】人数を読み取る"]
+    Parse --> ParseCheck{"データを\n読み取れたか"}
+    ParseCheck -- いいえ --> ErrMsg(["エラー内容を表示して終了"])
+    ParseCheck -- はい --> Zero0["人数が0人の記載は除外\n(day_countsに含めない)"]
+    Zero0 --> Search["対象月のD列(店舗名)から\n施設名を含む候補を検索"]
+    Search --> Cand{"候補は何件か"}
+    Cand -- "1件" --> Fix["その店舗名で確定"]
+    Cand -- "0件 or 複数件" --> Choice["「店舗の選択」画面を表示\n(絞り込み欄・↑↓・Enterで選べる)"]
+    Choice --> ChoiceCheck{"選んだか"}
+    ChoiceCheck -- キャンセル --> End2(["この店舗分は転記せず終了\n(貼り付けたテキストは残る)"])
+    ChoiceCheck -- はい --> Fix
+    Fix --> Match["確定した店舗名・対象月の行を\n日付ごとに照合"]
+    Match --> MatchCheck{"同じ日付の行が\n元の集計表にあるか"}
+    MatchCheck -- ある --> Judge["弁当注文人数とHUG人数を比較し\nG列に〇/×、H列に内訳、I列(HUG小計)に合計を記入"]
+    MatchCheck -- ない --> Insert["新しい行を挿入し\nD列・E列・G〜I列を記入\n(A列のファイルリンクは空欄のまま)"]
+    Judge --> Done2["結果(一致/不一致件数)を表示"]
+    Insert --> Done2
+    Done2 --> AllNg{"全件不一致だったか"}
+    AllNg -- はい --> Offer(["「エクセルファイルを\n開きますか？」と確認"])
+    AllNg -- いいえ --> End3(["完了"])
+</pre>
+      </div>
+      <p class="diagram-caption">行を新しく挿入する際は、既存のA列ハイパーリンクが1行分ずれないよう、挿入位置より下のリンクを自動で追従させてから挿入行のA列を空欄にする。</p>
+    </div>
+  </section>
+
+  <section class="diagram-section" id="legend">
+    <h3 class="diagram-title">出力ファイルの色分け・列の意味</h3>
+    <p class="diagram-sub">「フォルダ名集計表.xlsx」内で使われている配色と、G〜I列(②HUG転記用)の意味。</p>
+    <table class="legend">
+      <thead><tr><th style="width:30%">表示箇所</th><th>意味</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="swatch" style="background:#0563C1"></span>A列(青字・下線)</td>
+          <td>元のExcelファイルへのハイパーリンク(②で新規挿入された行は空欄)</td>
+        </tr>
+        <tr>
+          <td><span class="swatch" style="background:#F2F2F2"></span>本体行(灰色の縞模様)</td>
+          <td>同じ店舗名が続く間だけ交互に配色(店舗の区切りを見やすくする)</td>
+        </tr>
+        <tr>
+          <td><span class="swatch" style="background:#FFFF00"></span>【注文なし店舗】ヘッダー</td>
+          <td>「弁当注文人数」が0またはデータが見つからなかった店舗(行は薄い赤 <span class="swatch" style="background:#FFE0E0"></span>)</td>
+        </tr>
+        <tr>
+          <td><span class="swatch" style="background:#FFC000"></span>【ファイルなし店舗】ヘッダー</td>
+          <td>マスタにはあるが対象フォルダにファイル自体が見つからなかった店舗。類似名(先頭5文字一致)は除外済み(行は薄いオレンジ <span class="swatch" style="background:#FFE8CC"></span>)</td>
+        </tr>
+        <tr>
+          <td>G列「判定」</td>
+          <td>②HUG転記で、弁当注文人数とHUGの人数が一致なら「〇」、不一致なら「×」</td>
+        </tr>
+        <tr>
+          <td>H列「HUG」</td>
+          <td>②HUG転記で読み取った内訳の文字列(例: 加須プラス6/26_2人)</td>
+        </tr>
+        <tr>
+          <td>I列「HUG小計」</td>
+          <td>②HUG転記で読み取った人数の合計(0人だった記載は含めない)</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer class="foot">
+    マスタファイルの参照先は <code>C:\Users\owner\Desktop\works\保管書類\店舗リスト\table_HHHL共通店舗一覧m.xlsm</code> 固定(コード内にパス直書き)。
+  </footer>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>

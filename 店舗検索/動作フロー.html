@@ -1,0 +1,382 @@
+<style>
+  :root {
+    --bg: #eef2f0;
+    --surface: #ffffff;
+    --surface-2: #f4f7f5;
+    --ink: #1c2624;
+    --ink-soft: #4b5a57;
+    --ink-faint: #7c8985;
+    --rule: #d2dad6;
+    --rule-strong: #b6c2bd;
+    --accent: #2f6f63;
+    --accent-ink: #ffffff;
+    --accent-soft: #dceae6;
+    --warn: #a3611f;
+    --warn-soft: #f4e4d3;
+    --danger: #a23b3b;
+    --danger-soft: #f3dede;
+    --good: #2e7d46;
+    --good-soft: #dceedf;
+    --shadow: 0 1px 2px rgba(28, 38, 36, 0.06), 0 8px 24px rgba(28, 38, 36, 0.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12181a;
+      --surface: #1b2325;
+      --surface-2: #202a2c;
+      --ink: #e7eeec;
+      --ink-soft: #a9b7b3;
+      --ink-faint: #798683;
+      --rule: #2b3638;
+      --rule-strong: #3a4749;
+      --accent: #62c2ac;
+      --accent-ink: #0d1a17;
+      --accent-soft: #1e3733;
+      --warn: #e2a466;
+      --warn-soft: #3a2b18;
+      --danger: #e08787;
+      --danger-soft: #3a2020;
+      --good: #7fcb93;
+      --good-soft: #1e3324;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12181a; --surface: #1b2325; --surface-2: #202a2c; --ink: #e7eeec;
+    --ink-soft: #a9b7b3; --ink-faint: #798683; --rule: #2b3638; --rule-strong: #3a4749;
+    --accent: #62c2ac; --accent-ink: #0d1a17; --accent-soft: #1e3733;
+    --warn: #e2a466; --warn-soft: #3a2b18; --danger: #e08787; --danger-soft: #3a2020;
+    --good: #7fcb93; --good-soft: #1e3324;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #eef2f0; --surface: #ffffff; --surface-2: #f4f7f5; --ink: #1c2624;
+    --ink-soft: #4b5a57; --ink-faint: #7c8985; --rule: #d2dad6; --rule-strong: #b6c2bd;
+    --accent: #2f6f63; --accent-ink: #ffffff; --accent-soft: #dceae6;
+    --warn: #a3611f; --warn-soft: #f4e4d3; --danger: #a23b3b; --danger-soft: #f3dede;
+    --good: #2e7d46; --good-soft: #dceedf;
+    --shadow: 0 1px 2px rgba(28, 38, 36, 0.06), 0 8px 24px rgba(28, 38, 36, 0.05);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", "Noto Sans JP", sans-serif;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin: 0 0 10px;
+  }
+
+  h1 {
+    font-size: clamp(26px, 4vw, 34px);
+    font-weight: 800;
+    margin: 0 0 8px;
+    letter-spacing: 0.01em;
+    text-wrap: balance;
+  }
+
+  .path {
+    font-family: "Cascadia Code", "Consolas", ui-monospace, monospace;
+    font-size: 13px;
+    color: var(--ink-soft);
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 3px 8px;
+    display: inline-block;
+    word-break: break-all;
+  }
+
+  .lede {
+    margin: 18px 0 0;
+    color: var(--ink-soft);
+    font-size: 15.5px;
+    max-width: 62ch;
+  }
+
+  header.top {
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 28px;
+    margin-bottom: 40px;
+  }
+
+  section {
+    margin: 48px 0;
+  }
+
+  h2 {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 4px;
+  }
+
+  h3 {
+    font-size: 21px;
+    font-weight: 700;
+    margin: 2px 0 12px;
+    letter-spacing: 0.005em;
+  }
+
+  .section-intro {
+    color: var(--ink-soft);
+    font-size: 15px;
+    max-width: 68ch;
+    margin: 0 0 22px;
+  }
+
+  .diagram-frame {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 20px 18px 14px;
+  }
+
+  .diagram-scroll {
+    overflow-x: auto;
+  }
+
+  .diagram-scroll pre.mermaid {
+    margin: 0;
+    min-width: 560px;
+  }
+
+  .diagram-caption {
+    font-size: 12.5px;
+    color: var(--ink-faint);
+    margin: 10px 2px 0;
+    letter-spacing: 0.01em;
+  }
+
+  table.map {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14.5px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  table.map th {
+    text-align: left;
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 700;
+    padding: 12px 16px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  table.map td {
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  table.map tr:last-child td { border-bottom: none; }
+
+  .panel-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 9px 3px 7px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .panel-tag.left { background: var(--warn-soft); color: var(--warn); }
+  .panel-tag.right { background: var(--accent-soft); color: var(--accent); }
+
+  .panel-tag .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+  }
+
+  .item-name {
+    font-weight: 700;
+  }
+
+  .item-desc {
+    color: var(--ink-soft);
+    font-size: 13.5px;
+    margin-top: 2px;
+  }
+
+  code.fn {
+    font-family: "Cascadia Code", "Consolas", ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+
+  footer.note {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    font-size: 12.5px;
+    color: var(--ink-faint);
+  }
+</style>
+
+<div class="page">
+
+  <header class="top">
+    <p class="eyebrow">動作フロー解説</p>
+    <h1>店舗検索ミニウィンドウの動作フロー</h1>
+    <p class="path">店舗検索\tenpo.py</p>
+    <p class="lede">
+      画面右下に常に表示され続ける小さな検索ボックス。店舗マスタのExcel(リストシート)を起動時に読み込み、
+      店舗名を1文字入力するたびに部分一致検索して、対応する区分(エリア)を一覧表示するツール。
+    </p>
+  </header>
+
+  <section>
+    <h2>Step 1</h2>
+    <h3>操作の流れ</h3>
+    <p class="section-intro">
+      起動から検索・コピーまでの、画面上で行う一連の操作。
+      ウィンドウは常に最前面・画面右下固定で、他の作業をしながら重ねて使うことを想定している。
+    </p>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    A(["起動\npython tenpo.py"]) --> B["ウィンドウを画面右下に配置\n(タスクバーを避けたワークエリア内)"]
+    B --> C["起動時にExcel(リストシート)を読込み\n(Step 2 参照)"]
+    C --> D["ステータス欄に\n件数 or エラーを表示"]
+    D --> E["① 店舗名欄にキーワードを入力"]
+    E --> F{"1文字入力するたび\n(KeyRelease)"}
+    F --> G["部分一致で検索し\n結果欄に一覧表示(Step 2 参照)"]
+    G --> F
+    D --> H["② 常に最前面 チェックボックス"]
+    H --> I["ON/OFFで最前面表示を切替"]
+    D --> J["③ 更新ボタン ／ Ctrl+R"]
+    J --> K["Excelを再読込み\nステータス更新後\n現在の検索語で再検索"]
+    G --> L["④ 結果欄を右クリック\nまたは選択してCtrl+C"]
+    L --> M["1行(店舗名→区分)を\nクリップボードへコピー"]
+    E --> N["Escキーで検索欄をクリア"]
+</pre>
+      </div>
+      <p class="diagram-caption">結果欄(Textウィジェット)はコピー専用。ナビゲーション・選択・Ctrl+C／Ctrl+A以外のキー入力はすべて無効化されている。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Step 2</h2>
+    <h3>読み込み・検索のしくみ(内部処理)</h3>
+    <p class="section-intro">
+      起動時／更新時のExcel読み込みと、1文字入力するたびに走る検索処理の中身。
+    </p>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    P(["StoreData.reload()"]) --> Q["EXCEL_PATH を\nopenpyxl(read_only)で開く"]
+    Q --> R{"開けたか"}
+    R -- "FileNotFoundError" --> S["「ファイルが見つかりません」\nをエラーとして保持"]
+    R -- "PermissionError" --> T["「他で使用中の可能性」\nをエラーとして保持"]
+    R -- "その他の例外" --> U["例外メッセージを\nエラーとして保持"]
+    R -- "成功" --> V["シート「リスト」の1行目を\nヘッダーとして走査"]
+    V --> W{"見出しに\n「店舗名」「区分」が\n両方あるか"}
+    W -- ない --> X["「見出しが見つかりません」\nをエラーとして保持"]
+    W -- ある --> Y["2行目以降を1行ずつ読み\n店舗名が空でない行だけ\n(店舗名, 区分)として保持"]
+    Y --> Z["rows に格納・エラーをクリア"]
+
+    AA(["検索欄で1文字入力\n(_on_key)"]) --> AB{"読込み時に\nエラーがあるか"}
+    AB -- あり --> AC["結果欄は空のまま\n(ステータス欄にエラー表示済み)"]
+    AB -- なし --> AD{"キーワードが\n空か"}
+    AD -- 空 --> AE["結果欄をクリアして終了"]
+    AD -- 入力あり --> AF["大文字小文字を無視して\n店舗名にキーワードを含む行を抽出"]
+    AF --> AG{"該当行が\nあるか"}
+    AG -- なし --> AH["「該当なし」と表示"]
+    AG -- あり --> AI["先頭200件を\n「店舗名  →  区分」形式で\n1行ずつ表示"]
+</pre>
+      </div>
+      <p class="diagram-caption">検索は店舗名列のみが対象(区分列はキーワードに含まれない)。該当が200件を超えても先頭200件のみ表示される。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Step 3</h2>
+    <h3>ステータス欄の表示内容</h3>
+    <p class="section-intro">
+      起動直後・更新直後に、ウィンドウ下部のステータス欄(灰色文字)に何が表示されるかの対応表。
+    </p>
+    <table class="map">
+      <thead>
+        <tr>
+          <th style="width:30%">状態</th>
+          <th>表示内容</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="panel-tag right"><span class="dot"></span>読込み成功</span></td>
+          <td>
+            <div class="item-name">「◯件の店舗データを読み込み済み」</div>
+            <div class="item-desc">rows の件数(見出し行を除く、店舗名が入力されている行数)</div>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="panel-tag left"><span class="dot"></span>ファイルが見つからない</span></td>
+          <td>
+            <div class="item-name">「エクセルファイルが見つかりません:」+ <code class="fn">EXCEL_PATH</code></div>
+            <div class="item-desc">マスタファイルが移動・削除された場合</div>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="panel-tag left"><span class="dot"></span>ファイルが開けない</span></td>
+          <td>
+            <div class="item-name">「エクセルファイルを開けません（他で使用中の可能性があります）」</div>
+            <div class="item-desc">Excelアプリ側で同じファイルを開いたままになっている場合など</div>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="panel-tag left"><span class="dot"></span>見出し列が見つからない</span></td>
+          <td>
+            <div class="item-name">「見出し行に「店舗名」または「区分」が見つかりません」</div>
+            <div class="item-desc">「リスト」シートの1行目の列名が変更・削除された場合</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer class="note">
+    マスタファイルの参照先は <code>C:\Users\owner\Desktop\works\保管書類\店舗リスト\table_HHHL共通店舗一覧m.xlsm</code>(シート「リスト」)固定(コード内にパス直書き)。ファイルを直接更新した後は、③更新ボタンかCtrl+Rで再読込みする。
+  </footer>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>

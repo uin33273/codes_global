@@ -28,13 +28,20 @@ class FinalProcessorApp:
         self.root.geometry("300x120")
         self.root.attributes('-topmost', True)
         self.root.bind("<Escape>", lambda e: self.root.destroy())
-        
+        self.parent_root = None
+
         self.label = tk.Label(root, text="Excel処理を実行中...\n(Escキーで強制終了)", pady=20)
         self.label.pack()
 
+    def _cancel(self):
+        """ファイル選択でキャンセルされたら司令塔(実行.py)側に伝えて、全体を強制終了させる"""
+        if self.parent_root is not None:
+            self.parent_root.cancelled = True
+        self.root.destroy()
+
     def start_process(self):
         downloads = Path.home() / "Downloads"
-        
+
         # --- 1. 最初のファイル（運営用集計表）の読み込み ---
         path_agg = filedialog.askopenfilename(
             title="1-算定区分・加算等集計表（運営用）を選択してください",
@@ -42,7 +49,7 @@ class FinalProcessorApp:
             parent=self.root
         )
         if not path_agg:
-            self.root.destroy()
+            self._cancel()
             return
 
         # --- 2. 2番目のファイル（紐づけ済みファイル）の読み込み ---
@@ -53,17 +60,17 @@ class FinalProcessorApp:
             parent=self.root
         )
         if not path_target:
-            self.root.destroy()
+            self._cancel()
             return
 
         try:
             # データ処理開始
             wb_agg = openpyxl.load_workbook(path_agg, data_only=True)
-            ws_agg = wb_agg["集計"]
+            ws_agg = wb_agg["稼働数"]
             col_shop_agg = find_column_by_header(ws_agg, 3, "店舗名")
-            
+
             if not col_shop_agg:
-                messagebox.showerror("エラー", "集計表に『店舗名』が見つかりません。", parent=self.root)
+                messagebox.showerror("エラー", "稼働数シートに『店舗名』が見つかりません。", parent=self.root)
                 self.root.destroy()
                 return
 
@@ -99,6 +106,13 @@ class FinalProcessorApp:
                 for r in range(2, len(shop_names) + 2):
                     ws_lookup.cell(row=r, column=c+1).value = f'=_xlfn.XLOOKUP($A{r}, \'店舗名紐づけ\'!${key_col_letter}$2:${key_col_letter}$1000, \'店舗名紐づけ\'!${t_col}$2:${t_col}$1000, "")'
 
+            # タブの選択状態をLOOKUPだけにする。
+            # (元シートの tabSelected が残ったままだと、wb_target.active を変えても
+            #  開いた瞬間に元シートとLOOKUPの両方が選択された状態(グループモード)に見えてしまう)
+            for ws in wb_target.worksheets:
+                ws.sheet_view.tabSelected = False
+            ws_lookup.sheet_view.tabSelected = True
+
             # 保存
             save_path = os.path.join(str(downloads), "3-spreadsheetへコピペ用データ.xlsx")
             wb_target.active = ws_lookup
@@ -112,6 +126,7 @@ class FinalProcessorApp:
             self.root.destroy()
 
 def main(root=None):
+    parent_root = root
     if root is None:
         # 単体起動の場合
         root = tk.Tk()
@@ -122,11 +137,12 @@ def main(root=None):
         standalone = False
 
     # ウィンドウ設定
-    root.deiconify() 
+    root.deiconify()
     root.lift()
     root.focus_force()
-    
-    app = FinalProcessorApp(root) 
+
+    app = FinalProcessorApp(root)
+    app.parent_root = parent_root
     root.after(100, app.start_process)
     
     if standalone:

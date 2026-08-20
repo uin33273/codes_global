@@ -78,23 +78,30 @@ class ShopNameMatcherApp:
         self.root.title("算定区分04: 店名紐づけ")
         self.root.geometry("850x850")
         self.root.attributes('-topmost', True)
-       # self.root.withdraw() 
+       # self.root.withdraw()
         self.results = {}
+        self.parent_root = None
         self.root.bind("<Escape>", lambda e: self.root.destroy())
+
+    def _cancel(self):
+        """ファイル選択でキャンセルされたら司令塔(実行.py)側に伝えて、全体を強制終了させる"""
+        if self.parent_root is not None:
+            self.parent_root.cancelled = True
+        self.root.destroy()
 
     def start_process(self):
         downloads = Path.home() / "Downloads"
         
         path1 = filedialog.askopenfilename(title="1つ目：anyfiles_to_1files.xlsxを選択", initialdir=str(downloads), parent=self.root)
-        if not path1: self.root.destroy(); return
+        if not path1: self._cancel(); return
         df_csv = pd.read_excel(path1)
 
         path2 = filedialog.askopenfilename(title="2つ目：算定区分・加算等集計表（運営用）.xlsxを選択", initialdir=str(downloads), parent=self.root)
-        if not path2: self.root.destroy(); return
+        if not path2: self._cancel(); return
         
         try:
             # header=2は3行目が列名という意味
-            df_xlsx = pd.read_excel(path2, sheet_name='集計', header=2)
+            df_xlsx = pd.read_excel(path2, sheet_name='稼働数', header=2)
             xlsx_master = sorted(df_xlsx["店舗名"].dropna().astype(str).unique().tolist())
         except Exception as e:
             messagebox.showerror("エラー", f"Excelの読み込みに失敗しました。\n{e}", parent=self.root)
@@ -172,6 +179,7 @@ class ShopNameMatcherApp:
         self.root.destroy()
 
 def main(root=None):
+    parent_root = root
     if root is None:
         # 単体起動の場合
         root = tk.Tk()
@@ -182,12 +190,13 @@ def main(root=None):
         standalone = False
 
     # ウィンドウ設定
-    root.deiconify() 
+    root.deiconify()
     root.lift()
     root.focus_force()
-    
+
     app = ShopNameMatcherApp(root)
-    
+    app.parent_root = parent_root
+
     # 起動後に処理を開始
     root.after(100, app.start_process)
     

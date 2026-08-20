@@ -1,0 +1,22 @@
+Sheets: ['11月平出(HH)', 'リスト', 'keyword', '取引先', '使い方']
+--- 11月平出(HH)
+('収支区分', '管理番号', '発生日', '決済期日', '取引先', '取引先コード', '勘定科目', '税区分', '金額', '税計算区分', '税額', '備考', '品目', '店舗名', 'メモタグ（複数指定可、カンマ区切り）', '決済日', '決済口座', '決済金額', 'セグメント1', 'セグメント2', 'セグメント3')
+('支出', None, datetime.datetime(2025, 12, 31, 0, 0), datetime.datetime(2025, 1, 31, 0, 0), 'ウォータースタンド㈱', 'LC-0008', '賃借料', '対象外', None, '内税', None, None, None, '019KM 新間々田', '平出', None, None, None, None, None, None)
+(None, None, datetime.datetime(2025, 12, 31, 0, 0), datetime.datetime(2025, 1, 31, 0, 0), 'ウォータースタンド㈱', 'LC-0008', '賃借料', '対象外', None, '内税', None, None, None, '032KM 下高間木', '平出', None, None, None, None, None, None)
+(None, None, datetime.datetime(2025, 12, 31, 0, 0), datetime.datetime(2025, 1, 31, 0, 0), 'ウォータースタンド㈱', 'LC-0008', '賃借料', '対象外', None, '内税', None, None, None, '004GW 久喜', '平出', None, None, None, None, None, None)
+--- リスト
+('店舗名', '区分', 'アドレス', 'レク費url', 'エリアurl', '欠席加算末尾', '欠席加算url')
+('001ワークスA', 'ワークス', None, None, None, None, None)
+('001GC花見川', 'ワークス', None, None, None, None, None)
+('001GH宇都宮', '宇都宮', 'http://www.hug-globalkidsmethod.link/hug/wm/actual_cost_management.php', 'http://www.hug-globalkidsmethod.link/hug/wm/actual_cost_management.php', 'https://www.hug-globalkidsmethod.link/hug/wm/', 'attendance.php?mode=detail&f_id=4&date=2026-05-10', 'https://www.hug-globalkidsmethod.link/hug/wm/attendance.php?mode=detail&f_id=4&date=2026-05-10')
+--- keyword
+('欠席時対応記録票',)
+--- 取引先
+('取引先コード', '取引先', 'ショートカット1', 'ショートカット2', '正式名称（帳票出力時に使用される名称）', 'カナ名称', '敬称', '事業所種別', '地域', '郵便番号', '都道府県', '市区町村・番地', '建物名・部屋番号など', '電話番号', '営業担当者名', '営業担当者メールアドレス', '請求書送付方法', '銀行名', '銀行名（カナ）', '銀行番号', '支店名', '支店名（カナ）', '支店番号', '口座種別', '口座番号', '受取人名', '受取人名（カナ）', '締め日(支払期日設定)', '支払月(支払期日設定)', '支払日(支払期日設定)', '締め日(入金期日設定)', '入金月(入金期日設定)', '入金日(入金期日設定)', '手数料負担', '振込元口座', '入力候補', '適格請求書発行事業者（該当する/該当しない）', '適格請求書発行事業者の登録番号')
+('LC-0001', '㈲コパン（㈱カウネット）1767596', None, None, '㈲コパン', None, '(空白)', None, '国内', None, None, None, None, None, None, None, None, '三井住友銀行', None, 9, 'しらゆり支店', None, 761, '普通', 1767596, None, 'ｳｴﾙﾈﾂﾄ(ｶ', None, None, None, None, None, None, '当方', None, '使用する', '該当しない', None)
+('LC-0002', '㈱マネーフォワード', None, None, '㈱マネーフォワード', None, '(空白)', None, '国内', None, None, None, None, None, None, None, None, 'みずほ銀行', None, 1, '恵比寿支店', None, 188, '普通', 1563343, None, 'ｶ)ﾏﾈ-ﾌｵﾜ-ﾄﾞ', None, None, None, None, None, None, '当方', None, '使用する', '該当しない', None)
+('LC-0003', '㈱ビジュアル', None, None, '㈱ビジュアル', None, '(空白)', None, '国内', None, None, None, None, None, None, None, None, '足利銀行', None, 129, '宇都宮北出張所', None, 354, '普通', 2896145, None, 'ｶ)ﾋﾞｼﾞﾕｱﾙ', None, None, None, None, None, None, '当方', None, '使用する', '該当しない', None)
+--- 使い方
+('入力したいファイルで名前の定義をする', None, None, None)
+('名前', '外部table', '=table_HHHL共通店舗一覧m.xlsm!店舗名', '=table_HHHL共通店舗一覧m.xlsm!店舗名')
+('参照範囲', '=外部table', None, None)

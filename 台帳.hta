@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=11" />
+<title>業務ツール台帳</title>
+<HTA:APPLICATION
+    ID="toolLedger"
+    APPLICATIONNAME="業務ツール台帳"
+    SCROLL="yes"
+    SINGLEINSTANCE="yes"
+    CAPTION="yes"
+    SYSMENU="yes"
+    MAXIMIZEBUTTON="yes"
+    MINIMIZEBUTTON="yes"
+    BORDER="thick"
+/>
+<style>
+  html, body {
+    margin: 0; padding: 0;
+    background: #eef2f0; color: #1c2624;
+    font-family: "Yu Gothic UI", "Meiryo", sans-serif;
+    font-size: 13px;
+  }
+  #wrap { padding: 20px 24px 40px; }
+  h1 { font-size: 20px; margin: 0 0 4px; font-weight: 800; }
+  .path {
+    font-family: Consolas, monospace; font-size: 12px; color: #4b5a57;
+    background: #f4f7f5; border: 1px solid #d2dad6; border-radius: 5px; padding: 2px 7px;
+  }
+  .lede { margin: 10px 0 18px; color: #4b5a57; font-size: 12.5px; }
+
+  .toolbar { margin-bottom: 14px; }
+  #search {
+    width: 320px; font-size: 13px; padding: 7px 10px;
+    border: 1px solid #b6c2bd; border-radius: 6px; font-family: inherit;
+  }
+  #count { font-size: 12px; color: #7c8985; margin-left: 10px; }
+
+  table {
+    width: 100%; border-collapse: collapse; background: #ffffff;
+    border: 1px solid #d2dad6; table-layout: fixed;
+  }
+  th {
+    text-align: left; font-size: 11px; letter-spacing: 0.05em; color: #7c8985;
+    font-weight: 700; padding: 8px 10px; background: #f4f7f5; border-bottom: 1px solid #d2dad6;
+    border-right: 1px solid #e4e9e7;
+  }
+  td {
+    padding: 10px; border-bottom: 1px solid #d2dad6; border-right: 1px solid #e4e9e7;
+    vertical-align: top; word-wrap: break-word;
+  }
+  tr.ledger-row:hover { background: #f7faf9; }
+
+  .folder-name { font-weight: 700; font-size: 13.5px; }
+  .open-btn {
+    display: inline-block; margin-top: 4px; font-size: 11px; padding: 2px 8px;
+    border: 1px solid #b6c2bd; border-radius: 999px; background: #ffffff; cursor: pointer; color: #4b5a57;
+  }
+  .open-btn:hover { background: #f4f7f5; }
+
+  .desc { color: #4b5a57; font-size: 12.5px; }
+
+  .launch-btn {
+    display: block; width: 100%; margin-bottom: 5px; font-size: 12.5px; padding: 6px 8px;
+    border: 1px solid #2f6f63; border-radius: 6px; background: #2f6f63; color: #ffffff;
+    cursor: pointer; font-weight: 700;
+  }
+  .launch-btn:hover { background: #245349; }
+
+  .flow-btn {
+    display: inline-block; font-size: 12px; padding: 5px 10px; border-radius: 999px;
+    background: #dceae6; color: #2f6f63; border: none; cursor: pointer; font-weight: 700;
+  }
+  .flow-btn:hover { text-decoration: underline; }
+
+  .tag {
+    display: inline-block; max-width: 100%; font-size: 11px; font-weight: 700; padding: 2px 8px;
+    border-radius: 999px; background: #f4e4d3; color: #a3611f;
+    white-space: normal; word-break: break-word; line-height: 1.4; box-sizing: border-box;
+  }
+
+  .note { color: #7c8985; font-size: 12px; }
+  .json-note {
+    display: block; margin-top: 6px; font-size: 11.5px; color: #a3611f; background: #f4e4d3;
+    padding: 3px 7px; border-radius: 5px;
+  }
+
+  footer {
+    margin-top: 20px; padding-top: 14px; border-top: 1px solid #d2dad6;
+    font-size: 11.5px; color: #7c8985;
+  }
+</style>
+<script language="JScript">
+var baseDir = "";
+
+function initBaseDir() {
+    var fso = new ActiveXObject("Scripting.FileSystemObject");
+    var htaPath = decodeURIComponent(window.location.pathname);
+    if (htaPath.charAt(0) === "/") { htaPath = htaPath.substring(1); }
+    htaPath = htaPath.replace(/\//g, "\\");
+    baseDir = fso.GetParentFolderName(htaPath);
+}
+
+function runPy(relPath) {
+    try {
+        var shell = new ActiveXObject("WScript.Shell");
+        shell.Run('python "' + baseDir + "\\" + relPath + '"', 1, false);
+    } catch (e) {
+        alert("起動に失敗しました。台帳.hta として開いていますか？\n" + e.message);
+    }
+}
+
+var pythonwExe = "C:\\Users\\owner\\AppData\\Local\\Programs\\Python\\Python314\\pythonw.exe";
+
+function runPyw(relPath) {
+    try {
+        var shell = new ActiveXObject("WScript.Shell");
+        shell.Run('"' + pythonwExe + '" "' + baseDir + "\\" + relPath + '"', 0, false);
+    } catch (e) {
+        alert("起動に失敗しました。台帳.hta として開いていますか？\n" + e.message);
+    }
+}
+
+function openPath(relPath) {
+    try {
+        var shell = new ActiveXObject("WScript.Shell");
+        shell.Run('"' + baseDir + "\\" + relPath + '"', 1, false);
+    } catch (e) {
+        alert("開けませんでした。\n" + e.message);
+    }
+}
+
+function filterRows() {
+    var q = document.getElementById("search").value.toLowerCase();
+    var rows = document.getElementsByClassName("ledger-row");
+    var visible = 0;
+    for (var i = 0; i < rows.length; i++) {
+        var text = (rows[i].innerText || rows[i].textContent || "").toLowerCase();
+        if (q === "" || text.indexOf(q) !== -1) {
+            rows[i].style.display = "";
+            visible++;
+        } else {
+            rows[i].style.display = "none";
+        }
+    }
+    document.getElementById("count").innerText = visible + " / " + rows.length + " 件";
+}
+
+window.onload = function () {
+    initBaseDir();
+    window.resizeTo(1040, 720);
+    var x = (screen.availWidth - 1040) / 2;
+    var y = (screen.availHeight - 720) / 2;
+    window.moveTo(x < 0 ? 0 : x, y < 0 ? 0 : y);
+    filterRows();
+};
+</script>
+</head>
+<body>
+<div id="wrap">
+
+  <h1>業務ツール台帳</h1>
+  <p><span class="path">C:\Users\owner\Desktop\works\保管書類\codes\</span></p>
+  <p class="lede">
+    フォルダ名・概要・タグで検索、ボタンで直接起動できる台帳。この台帳(台帳.hta)は codes フォルダ直下に置いたまま開くこと。
+  </p>
+
+  <div class="toolbar">
+    <input id="search" type="text" onkeyup="filterRows()" placeholder="フォルダ名・概要・タグで検索…">
+    <span id="count"></span>
+  </div>
+
+  <table>
+    <colgroup>
+      <col style="width:14%">
+      <col style="width:11%">
+      <col style="width:24%">
+      <col style="width:18%">
+      <col style="width:14%">
+      <col style="width:19%">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>フォルダ</th>
+        <th>タグ</th>
+        <th>概要</th>
+        <th>起動</th>
+        <th>動作フロー</th>
+        <th>備考</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <tr class="ledger-row">
+        <td>
+          <div class="folder-name">算定区分ダウンロード作業</div>
+          <button class="open-btn" onclick="openPath('算定区分ダウンロード作業')">📂 開く</button>
+        </td>
+        <td><span class="tag">算定区分</span></td>
+        <td class="desc">Playwrightでブラウザを自動操作し、HUGシステムの複数サイト・店舗から算定区分CSVを一括ダウンロード</td>
+        <td>
+          <button class="launch-btn" onclick="runPy('算定区分ダウンロード作業\\算定区分CSVダウンロード.py')">▶ 起動</button>
+        </td>
+        <td><button class="flow-btn" onclick="openPath('算定区分ダウンロード作業\\動作フロー.html')">📄 開く</button></td>
+        <td class="note">
+          python未インストール環境では起動不可
+          <span class="json-note">⚠ Desktop\HUG.json が必要(なければ起動時にエラー)</span>
+        </td>
+      </tr>
+
+      <tr class="ledger-row">
+        <td>
+          <div class="folder-name">算定区分後工程分</div>
+          <button class="open-btn" onclick="openPath('算定区分後工程分')">📂 開く</button>
+        </td>
+        <td><span class="tag">算定区分</span></td>
+        <td class="desc">ダウンロードしたCSVをExcel変換→分割→統合→店名紐づけ→LOOKUP数式付き最終データ作成まで一括処理</td>
+        <td>
+          <button class="launch-btn" onclick="runPy('算定区分後工程分\\算定区分後工程一括.py')">▶ 起動</button>
+        </td>
+        <td><button class="flow-btn" onclick="openPath('算定区分後工程分\\動作フロー.html')">📄 開く</button></td>
+        <td class="note">python未インストール環境では起動不可</td>
+      </tr>
+
+      <tr class="ledger-row">
+        <td>
+          <div class="folder-name">欠席加算</div>
+          <button class="open-btn" onclick="openPath('欠席加算')">📂 開く</button>
+        </td>
+        <td><span class="tag" style="background:#dceae6;color:#2f6f63;">欠席加算</span></td>
+        <td class="desc">日報PDF(欠席時対応記録票)とHUGカレンダーの貼り付けテキストを突合し、食い違い・記入漏れの疑いを一覧化</td>
+        <td>
+          <button class="launch-btn" onclick="runPy('欠席加算\\欠席加算rename_with_area.py')">▶ エリアrename</button>
+          <button class="launch-btn" onclick="runPy('欠席加算\\欠席加算比較チェック君_gui.py')">▶ 比較チェック君</button>
+        </td>
+        <td><button class="flow-btn" onclick="openPath('欠席加算\\動作フロー.html')">📄 開く</button></td>
+        <td class="note">python未インストール環境では起動不可</td>
+      </tr>
+
+      <tr class="ledger-row">
+        <td>
+          <div class="folder-name">専門的支援実施加算</div>
+          <button class="open-btn" onclick="openPath('専門的支援実施加算')">📂 開く</button>
+        </td>
+        <td><span class="tag" style="background:#dceae6;color:#2f6f63;">専門的支援実施加算</span></td>
+        <td class="desc">HUGカレンダーの貼り付けテキストから、日ごとに「専門的支援実施加算」に記載されている人数・氏名を集計してCSVに保存</td>
+        <td>
+          <button class="launch-btn" onclick="runPyw('専門的支援実施加算\\専門的支援実施加算人数カウント君_gui.py')">▶ 起動</button>
+        </td>
+        <td><button class="flow-btn" onclick="openPath('専門的支援実施加算\\動作フロー.html')">📄 開く</button></td>
+        <td class="note">python未インストール環境では起動不可</td>
+      </tr>
+
+      <tr class="ledger-row">
+        <td>
+          <div class="folder-name">カウネット</div>
+          <button class="open-btn" onclick="openPath('カウネット')">📂 開く</button>
+        </td>
+        <td><span class="tag" style="background:#e6e0f7;color:#5b3fa0;">カウネット</span></td>
+        <td class="desc">実績データのダウンロード・結合と、コピペ用データの集計を一括実行するランチャー付きツール一式</td>
+        <td>
+          <button class="launch-btn" onclick="runPy('カウネット\\カウネット_run_all.py')">▶ 起動</button>
+        </td>
+        <td><button class="flow-btn" onclick="openPath('カウネット\\動作フロー.html')">📄 開く</button></td>
+        <td class="note">
+          python未インストール環境では起動不可
+          <span class="json-note">Desktop\カウネット_電話_口座番号.json(なければ自動生成)</span>
+        </td>
+      </tr>
+
+      <tr class="ledger-row">
+        <td>
+          <div class="folder-name">pdf画像作成tools</div>
+          <button class="open-btn" onclick="openPath('pdf画像作成tools')">📂 開く</button>
+        </td>
+        <td><span class="tag" style="background:#dbeafe;color:#1d4ed8;">画像・PDF</span></td>
+        <td class="desc">PowerPoint内の画像を規定サイズで中央配置、またはJPEGの余白を自動トリミング</td>
+        <td>
+          <button class="launch-btn" onclick="runPy('pdf画像作成tools\\イメージトリミング.py')">▶ トリミング</button>
+          <button class="launch-btn" onclick="runPy('pdf画像作成tools\\PDF画像位置サイズ調整.py')">▶ 位置サイズ調整</button>
+        </td>
+        <td><button class="flow-btn" onclick="openPath('pdf画像作成tools\\動作フロー.html')">📄 開く</button></td>
+        <td class="note">
+          python未インストール環境では起動不可
+          <span class="json-note" style="background:#f4f7f5;color:#4b5a57;">既存の「PDFツール起動メニュー.hta」でも同じ2つを起動可</span>
+        </td>
+      </tr>
+
+      <tr class="ledger-row">
+        <td>
+          <div class="folder-name">レクカレリネーム</div>
+          <button class="open-btn" onclick="openPath('レクカレリネーム')">📂 開く</button>
+        </td>
+        <td><span class="tag" style="background:#dbeafe;color:#1d4ed8;">画像・PDF</span></td>
+        <td class="desc">店舗リストと照合して画像ファイル名の先頭にエリア名を自動付与、または「引き落し」記載を自動検出してハイライト。メニューからどちらかを選択して起動</td>
+        <td>
+          <button class="launch-btn" onclick="runPy('レクカレリネーム\\メニュー.py')">▶ 起動</button>
+        </td>
+        <td><button class="flow-btn" onclick="openPath('レクカレリネーム\\動作フロー.html')">📄 開く</button></td>
+        <td class="note">python未インストール環境では起動不可</td>
+      </tr>
+
+      <tr class="ledger-row">
+        <td>
+          <div class="folder-name">弁当代</div>
+          <button class="open-btn" onclick="openPath('弁当代')">📂 開く</button>
+        </td>
+        <td><span class="tag" style="background:#fde68a;color:#92620a;">弁当代</span></td>
+        <td class="desc">各店舗のExcelから弁当注文人数を集計し、店舗マスタと突合して注文あり/なし/ファイルなしに仕分け</td>
+        <td>
+          <button class="launch-btn" onclick="runPy('弁当代\\弁当代チェック.py')">▶ 起動</button>
+        </td>
+        <td><button class="flow-btn" onclick="openPath('弁当代\\動作フロー.html')">📄 開く</button></td>
+        <td class="note">python未インストール環境では起動不可</td>
+      </tr>
+
+    </tbody>
+  </table>
+
+  <footer>
+    「起動」ボタンはすべて「python スクリプト名.py」で実行する(このPCにPythonと必要なライブラリが入っている前提)。
+    「⚠」付きの備考は起動前に該当ファイルを用意しておく必要があることを示す。
+  </footer>
+
+</div>
+</body>
+</html>

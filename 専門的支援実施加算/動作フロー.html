@@ -1,0 +1,389 @@
+<style>
+  :root {
+    --bg: #eef2f0;
+    --surface: #ffffff;
+    --surface-2: #f4f7f5;
+    --ink: #1c2624;
+    --ink-soft: #4b5a57;
+    --ink-faint: #7c8985;
+    --rule: #d2dad6;
+    --rule-strong: #b6c2bd;
+    --accent: #2f6f63;
+    --accent-ink: #ffffff;
+    --accent-soft: #dceae6;
+    --warn: #a3611f;
+    --warn-soft: #f4e4d3;
+    --danger: #a23b3b;
+    --danger-soft: #f3dede;
+    --good: #2e7d46;
+    --good-soft: #dceedf;
+    --shadow: 0 1px 2px rgba(28, 38, 36, 0.06), 0 8px 24px rgba(28, 38, 36, 0.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12181a;
+      --surface: #1b2325;
+      --surface-2: #202a2c;
+      --ink: #e7eeec;
+      --ink-soft: #a9b7b3;
+      --ink-faint: #798683;
+      --rule: #2b3638;
+      --rule-strong: #3a4749;
+      --accent: #62c2ac;
+      --accent-ink: #0d1a17;
+      --accent-soft: #1e3733;
+      --warn: #e2a466;
+      --warn-soft: #3a2b18;
+      --danger: #e08787;
+      --danger-soft: #3a2020;
+      --good: #7fcb93;
+      --good-soft: #1e3324;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12181a; --surface: #1b2325; --surface-2: #202a2c; --ink: #e7eeec;
+    --ink-soft: #a9b7b3; --ink-faint: #798683; --rule: #2b3638; --rule-strong: #3a4749;
+    --accent: #62c2ac; --accent-ink: #0d1a17; --accent-soft: #1e3733;
+    --warn: #e2a466; --warn-soft: #3a2b18; --danger: #e08787; --danger-soft: #3a2020;
+    --good: #7fcb93; --good-soft: #1e3324;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #eef2f0; --surface: #ffffff; --surface-2: #f4f7f5; --ink: #1c2624;
+    --ink-soft: #4b5a57; --ink-faint: #7c8985; --rule: #d2dad6; --rule-strong: #b6c2bd;
+    --accent: #2f6f63; --accent-ink: #ffffff; --accent-soft: #dceae6;
+    --warn: #a3611f; --warn-soft: #f4e4d3; --danger: #a23b3b; --danger-soft: #f3dede;
+    --good: #2e7d46; --good-soft: #dceedf;
+    --shadow: 0 1px 2px rgba(28, 38, 36, 0.06), 0 8px 24px rgba(28, 38, 36, 0.05);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", "Noto Sans JP", sans-serif;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin: 0 0 10px;
+  }
+
+  h1 {
+    font-size: clamp(26px, 4vw, 34px);
+    font-weight: 800;
+    margin: 0 0 8px;
+    letter-spacing: 0.01em;
+    text-wrap: balance;
+  }
+
+  .path {
+    font-family: "Cascadia Code", "Consolas", ui-monospace, monospace;
+    font-size: 13px;
+    color: var(--ink-soft);
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 3px 8px;
+    display: inline-block;
+    word-break: break-all;
+  }
+
+  .lede {
+    margin: 18px 0 0;
+    color: var(--ink-soft);
+    font-size: 15.5px;
+    max-width: 62ch;
+  }
+
+  header.top {
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 28px;
+    margin-bottom: 40px;
+  }
+
+  section {
+    margin: 48px 0;
+  }
+
+  h2 {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 4px;
+  }
+
+  h3 {
+    font-size: 21px;
+    font-weight: 700;
+    margin: 2px 0 12px;
+    letter-spacing: 0.005em;
+  }
+
+  .section-intro {
+    color: var(--ink-soft);
+    font-size: 15px;
+    max-width: 68ch;
+    margin: 0 0 22px;
+  }
+
+  .diagram-frame {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 20px 18px 14px;
+  }
+
+  .diagram-scroll {
+    overflow-x: auto;
+  }
+
+  .diagram-scroll pre.mermaid {
+    margin: 0;
+    min-width: 560px;
+  }
+
+  .diagram-caption {
+    font-size: 12.5px;
+    color: var(--ink-faint);
+    margin: 10px 2px 0;
+    letter-spacing: 0.01em;
+  }
+
+  table.map {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14.5px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  table.map th {
+    text-align: left;
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 700;
+    padding: 12px 16px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  table.map td {
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  table.map tr:last-child td { border-bottom: none; }
+
+  .panel-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 9px 3px 7px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .panel-tag.left { background: var(--warn-soft); color: var(--warn); }
+  .panel-tag.right { background: var(--accent-soft); color: var(--accent); }
+
+  .panel-tag .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+  }
+
+  .item-name {
+    font-weight: 700;
+  }
+
+  .item-desc {
+    color: var(--ink-soft);
+    font-size: 13.5px;
+    margin-top: 2px;
+  }
+
+  code.fn {
+    font-family: "Cascadia Code", "Consolas", ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+
+  footer.note {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    font-size: 12.5px;
+    color: var(--ink-faint);
+  }
+</style>
+
+<div class="page">
+
+  <header class="top">
+    <p class="eyebrow">動作フロー解説</p>
+    <h1>専門的支援実施加算 人数カウント君の動作フロー</h1>
+    <p class="path">専門的支援実施加算\codes\専門的支援実施加算\専門的支援実施加算人数カウント君_gui.py</p>
+    <p class="lede">
+      カレンダー画面からコピーしたテキストを貼り付けるだけで、
+      日ごとの「専門的支援実施加算」該当人数を1日〜31日の連番で集計し、
+      Excelへそのまま貼り付けられる形で出力するツールの、
+      画面操作の流れと内部の集計ロジックをまとめたもの。
+    </p>
+  </header>
+
+  <section>
+    <h2>Step 1</h2>
+    <h3>操作の流れ</h3>
+    <p class="section-intro">
+      貼り付けから集計、Excelへのコピー／CSV保存までの一連の操作。
+      「全クリア」を押すと貼り付け欄と結果表示がまとめてリセットされる。
+    </p>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    A(["起動\npython 専門的支援実施加算人数カウント君_gui.py"]) --> B["① カレンダー画面の\nコピーテキストを貼り付け"]
+    B --> C["② 集計する を押す"]
+    C --> D{"貼り付け欄は\n空でないか"}
+    D -- 空 --> E["警告ダイアログを表示して中断"]
+    D -- 入力あり --> F["内部処理へ\n(Step 2 参照)"]
+    F --> G{"日付見出しが\n1つでも見つかったか"}
+    G -- 見つからない --> H["警告ダイアログを表示して中断"]
+    G -- 見つかった --> I["1日〜31日の連番で\n左右パネルに表示"]
+    I --> J{"次に行う操作"}
+    J -- "Excelへ貼り付けたい" --> K["日別人数をコピー\n(Excel貼り付け用)"]
+    J -- "ファイルで残したい" --> L["日別人数をCSVで保存"]
+    J -- "最初からやり直す" --> M["全クリア"]
+    K --> N(["Excelのセルに貼り付け"])
+    L --> O(["確認終了"])
+    M --> B
+</pre>
+      </div>
+      <p class="diagram-caption">②「集計する」を押した時点で貼り付け欄が空、または日付見出しが1つも検出できない場合は警告のみでここで止まる。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Step 2</h2>
+    <h3>集計のしくみ(内部処理)</h3>
+    <p class="section-intro">
+      貼り付けテキストを1行ずつ読み、日付見出し・区分見出し・氏名を順番に判定していく状態遷移。
+      区分見出し(延長支援加算／専門的支援実施加算／個別サポート加算 など)はいずれも
+      「加算」という文字を含むため、それを区切りとして「専門的支援実施加算」の範囲内にある行だけを氏名として数える。
+    </p>
+    <div class="diagram-frame">
+      <div class="diagram-scroll">
+<pre class="mermaid">
+flowchart TD
+    A["貼り付けテキストを1行ずつ読む"] --> B{"空行／曜日見出し行\n(日 月 火 水 木 金 土)か"}
+    B -- はい --> A
+    B -- いいえ --> C{"日付見出し行か\n(例:'1'／'海の日 20')"}
+    C -- はい --> D["current_day を更新\nin_target を False にリセット"]
+    D --> A
+    C -- いいえ --> E{"current_day は\n決まっているか"}
+    E -- 未決定 --> A
+    E -- 決定済み --> F{"「専門的支援実施加算」\nを含む行か"}
+    F -- はい --> G["in_target = True"]
+    G --> A
+    F -- いいえ --> H{"「加算」を含む行か\n(他の区分見出し)"}
+    H -- はい --> I["in_target = False"]
+    I --> A
+    H -- いいえ --> J{"in_target は\nTrue か"}
+    J -- はい --> K["氏名としてcurrent_dayに追加"]
+    K --> A
+    J -- いいえ --> A
+</pre>
+      </div>
+      <p class="diagram-caption">「海の日 20」のように祝日名と日付が同じ行に来ていても、末尾の数字だけを日付として認識する。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Step 3</h2>
+    <h3>結果はどこに表示・出力されるか</h3>
+    <p class="section-intro">
+      Step 2 で作られた「日ごとの該当者リスト」が、画面・コピー・CSVのどこにどう出力されるかの対応表。
+      出力範囲は常に1日〜31日固定で、該当者がいない日・見出し検出に失敗した日は0人として埋められる
+      (Excel貼り付け時に行がズレないようにするための仕様)。
+    </p>
+    <table class="map">
+      <thead>
+        <tr>
+          <th style="width:26%">出力先</th>
+          <th>内容</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="panel-tag left"><span class="dot"></span>左：日別人数</span></td>
+          <td>
+            <div class="item-name">1日〜31日の人数一覧</div>
+            <div class="item-desc">「合計」行のあとに <code class="fn">日付\t人数\t人</code> の形式で1日〜31日を連番表示</div>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="panel-tag right"><span class="dot"></span>右：内訳</span></td>
+          <td>
+            <div class="item-name">日ごとの該当者氏名(確認用)</div>
+            <div class="item-desc">「〇日(〇人)」に続けて、その日に「専門的支援実施加算」へ記載されていた氏名を列挙</div>
+          </td>
+        </tr>
+        <tr>
+          <td>日別人数をコピー</td>
+          <td>
+            <div class="item-name">Excel貼り付け用データ</div>
+            <div class="item-desc">日付・人数・「人」を <code class="fn">\t</code> 区切り、日ごとを <code class="fn">\r\n</code> 区切りでクリップボードへコピー。
+            Excelに貼り付けると1日=1行、日付・人数・「人」がそれぞれ別セルになる</div>
+          </td>
+        </tr>
+        <tr>
+          <td>日別人数をCSVで保存</td>
+          <td>
+            <div class="item-name">専門的支援実施加算_日別人数.csv</div>
+            <div class="item-desc">「日」「人数」の2列で1日〜31日ぶんを保存</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer class="note">
+    右クリックメニューの「コピー」も、選択範囲を同じ <code class="fn">\r\n</code> 区切りに変換してからクリップボードへコピーするため、
+    左右のテキスト欄を手動選択してコピーした場合もExcelでセルが分かれる。
+  </footer>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>
