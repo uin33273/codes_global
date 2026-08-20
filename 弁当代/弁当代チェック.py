@@ -186,12 +186,16 @@ def insert_instructions_with_links(text_widget, content):
         text_widget.insert("end", "\n")
 
 
-def show_instructions_dialog():
-    """起動直後に「仕事の進め方」を表示し、閉じるまで先へ進ませない。"""
-    root = tk.Tk()
-    root.withdraw()
+def show_instructions_dialog(parent=None):
+    """「仕事の進め方」を表示し、閉じるまで先へ進ませない。
+    parentを省略した場合（起動直後の呼び出し）は専用のTkルートを新規作成する。
+    既存のwindowから呼ぶ場合はparentにそのwindowを渡す。"""
+    owns_root = parent is None
+    if owns_root:
+        parent = tk.Tk()
+        parent.withdraw()
 
-    win = tk.Toplevel(root)
+    win = tk.Toplevel(parent)
     win.title(f"仕事の進め方({os.path.basename(os.path.dirname(os.path.abspath(__file__)))})")
     win.geometry("560x520")
 
@@ -216,8 +220,9 @@ def show_instructions_dialog():
     win.attributes("-topmost", True)
     win.lift()
     win.focus_force()
-    root.wait_window(win)
-    root.destroy()
+    parent.wait_window(win)
+    if owns_root:
+        parent.destroy()
 
 def fix_kana(s):
     # 小書き「ヶ」を大書き「ケ」に統一する（例：雨ヶ谷→雨ケ谷）
@@ -692,6 +697,8 @@ def run_hug_paste_tool(root):
     ttk.Button(button_row, text="転記", command=do_transfer).pack(side="left")
     ttk.Button(button_row, text="クリヤー", command=lambda: text_widget.delete("1.0", "end")).pack(side="left", padx=(8, 0))
     ttk.Button(button_row, text="閉じる", command=win.destroy).pack(side="right")
+    ttk.Button(button_row, text="仕事の進め方", command=lambda: show_instructions_dialog(win)).pack(side="right", padx=(0, 8))
+    ttk.Button(button_row, text="✎ 取説を編集", command=open_instructions_editor).pack(side="right", padx=(0, 8))
 
     win.protocol("WM_DELETE_WINDOW", win.destroy)
     win.lift()

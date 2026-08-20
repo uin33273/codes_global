@@ -17,6 +17,7 @@
   ドラッグ&ドロップができない場合は自動的に「PDFを選択」ボタンのみのモードで動作します。
 """
 
+import json
 import os
 import re
 import sys
@@ -27,6 +28,7 @@ from datetime import datetime
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from tkinter import font as tkfont
+import openpyxl
 
 # ============================== 仕事の進め方 / 取説 ==============================
 
@@ -65,6 +67,37 @@ def read_instructions():
     except OSError as e:
         return f"手順ファイルの読み込みに失敗しました。\n{path}\n{e}"
 
+
+# ============================== 前回設定の保存(対象日付範囲・結果欄の高さ) ==============================
+
+SETTINGS_FILENAME = "gui_settings.json"
+
+
+def get_settings_path():
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(app_dir, SETTINGS_FILENAME)
+
+
+def load_settings():
+    path = get_settings_path()
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def save_settings(settings):
+    path = get_settings_path()
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, ensure_ascii=False, indent=2)
+    except OSError:
+        pass
+
+
 try:
     import pdfplumber
 except ImportError:
@@ -76,6 +109,88 @@ try:
     DND_AVAILABLE = True
 except ImportError:
     DND_AVAILABLE = False
+
+
+# ============ 施設検索(店舗検索/tenpo.pyと同じ考え方) ============
+
+STORE_EXCEL_PATH = r"C:\Users\owner\Desktop\works\保管書類\店舗リスト\table_HHHL共通店舗一覧m.xlsm"
+STORE_SHEET_NAME = "リスト"
+STORE_NAME_COL = "店舗名"
+STORE_AREA_COL = "区分"
+
+
+class StoreData:
+    def __init__(self, path, sheet_name, name_col, area_col):
+        self.path = path
+        self.sheet_name = sheet_name
+        self.name_col = name_col
+        self.area_col = area_col
+        self.rows = []  # [(店舗名, エリア), ...]
+        self.error = None
+        self.reload()
+
+    def reload(self):
+        try:
+            wb = openpyxl.load_workbook(
+                self.path, read_only=True, data_only=True, keep_vba=True
+            )
+            ws = wb[self.sheet_name]
+            header = None
+            rows = []
+            for i, row in enumerate(ws.iter_rows(values_only=True)):
+                if i == 0:
+                    header = row
+                    try:
+                        name_idx = header.index(self.name_col)
+                        area_idx = header.index(self.area_col)
+                    except ValueError:
+                        self.error = "見出し行に「{}」または「{}」が見つかりません".format(
+                            self.name_col, self.area_col
+                        )
+                        self.rows = []
+                        wb.close()
+                        return
+                    continue
+                name = row[name_idx] if name_idx < len(row) else None
+                area = row[area_idx] if area_idx < len(row) else None
+                if name:
+                    rows.append((str(name), str(area) if area else ""))
+            wb.close()
+            self.rows = rows
+            self.error = None
+        except FileNotFoundError:
+            self.error = "エクセルファイルが見つかりません:\n{}".format(self.path)
+            self.rows = []
+        except PermissionError:
+            self.error = "エクセルファイルを開けません（他で使用中の可能性があります）"
+            self.rows = []
+        except Exception as e:
+            self.error = "読み込みエラー: {}".format(e)
+            self.rows = []
+
+    def search(self, keyword):
+        if not keyword:
+            return []
+        kw = keyword.casefold()
+        return [
+            (name, area)
+            for name, area in self.rows
+            if kw in name.casefold()
+        ]
+
+
+def extract_facility_name(text: str):
+    """HUGカレンダー画面の貼り付けテキストから、「施設」という見出し行の
+    すぐ下にある地名(例:「岩曽」)を取り出す。見つからなければNoneを返す。"""
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if line.strip() == "施設":
+            for nxt in lines[i + 1:]:
+                s = nxt.strip()
+                if s:
+                    return s
+            break
+    return None
 
 
 # ============ 突き合わせロジック(compare_absences.pyと同じ考え方) ============
@@ -418,8 +533,11 @@ class App(BaseTk):
 
         self.pdf_path = None
         self._instructions_win = None
+        self.settings = load_settings()
+        self.store_data = StoreData(STORE_EXCEL_PATH, STORE_SHEET_NAME, STORE_NAME_COL, STORE_AREA_COL)
 
         self._build_widgets()
+        self._refresh_store_status()
 
         # メイン画面が表示された直後に、仕事の進め方ガイドを自動表示する
         self.after(200, lambda: self._show_instructions_dialog(auto=True))
@@ -432,15 +550,13 @@ class App(BaseTk):
         ttk.Button(header_row, text="📋 仕事の進め方", command=self._show_instructions_dialog).pack(side="right")
         ttk.Button(header_row, text="✎ 取説を編集", command=self._open_instructions_editor).pack(side="right", padx=(0, 6))
 
-        # --- 上段(①②)と下段(結果)を上下にドラッグして高さ調整できるように分割 ---
-        main_paned = tk.PanedWindow(self, orient="vertical", sashrelief="raised", sashwidth=6)
-        main_paned.pack(fill="both", expand=True)
+        # --- 上段(①②、施設検索まで)は必要最小限の高さで固定。サッシは廃止し、
+        #     下段(結果)だけがウィンドウの余った高さを埋める ---
+        top_frame = ttk.Frame(self)
+        top_frame.pack(side="top", fill="x")
 
-        top_frame = ttk.Frame(main_paned)
-        main_paned.add(top_frame, height=360, minsize=200, stretch="always")
-
-        bottom_frame = ttk.Frame(main_paned)
-        main_paned.add(bottom_frame, minsize=150, stretch="always")
+        bottom_frame = ttk.Frame(self)
+        bottom_frame.pack(side="top", fill="both", expand=True)
 
         # --- PDFエリア ---
         frame_pdf = ttk.LabelFrame(top_frame, text="① 欠席時対応記録票(日報PDF)")
@@ -456,10 +572,48 @@ class App(BaseTk):
             self.pdf_label.drop_target_register(DND_FILES)
             self.pdf_label.dnd_bind("<<Drop>>", self._on_pdf_drop)
 
-        ttk.Button(frame_pdf, text="PDFを選択...", command=self._choose_pdf).pack(pady=(0, 10))
+        pdf_button_row = ttk.Frame(frame_pdf)
+        pdf_button_row.pack(pady=(0, 10))
+        ttk.Button(pdf_button_row, text="PDFを選択...", command=self._choose_pdf).pack(side="left")
+        ttk.Button(pdf_button_row, text="開く", command=self._open_pdf).pack(side="left", padx=(6, 0))
 
-        # --- 実行ボタン(bottomに先取りしてpackし、カレンダー欄を縮めても隠れないようにする) ---
-        ttk.Button(top_frame, text="③ 比較する", command=self._run_compare).pack(side="bottom", pady=6)
+        # --- ③ボタン〜施設検索〜検索結果窓をまとめて、常に現在の最小の高さで固定する ---
+        bottom_fixed_area = tk.Frame(top_frame)
+        bottom_fixed_area.pack(side="bottom", fill="x")
+
+        ttk.Button(bottom_fixed_area, text="③ 比較する", command=self._run_compare).pack(pady=6)
+
+        # --- 施設検索(②に貼り付けたテキストの「施設」の下の地名を自動転記) ---
+        search_area = ttk.Frame(bottom_fixed_area)
+        search_area.pack(fill="x")
+
+        search_row = ttk.Frame(search_area)
+        search_row.pack(side="top", fill="x", padx=10, pady=(8, 0))
+        ttk.Label(search_row, text="施設検索:").pack(side="left")
+        self.store_entry = ttk.Entry(search_row, width=16)
+        self.store_entry.pack(side="left", padx=(4, 4))
+        self.store_entry.bind("<KeyRelease>", self._on_store_search)
+        ttk.Button(search_row, text="更新", width=4, command=self._reload_store_data).pack(side="left")
+        self.store_status_var = tk.StringVar()
+        ttk.Label(search_row, textvariable=self.store_status_var, foreground="#666666").pack(
+            side="left", padx=(10, 0)
+        )
+
+        store_result_frame = ttk.Frame(search_area)
+        store_result_frame.pack(side="top", anchor="w", padx=10, pady=(2, 4))
+        self.store_result_text = tk.Text(store_result_frame, height=3, width=40, wrap="none")
+        store_scroll = ttk.Scrollbar(
+            store_result_frame, orient="vertical", command=self.store_result_text.yview
+        )
+        self.store_result_text.config(yscrollcommand=store_scroll.set, state="disabled")
+        store_scroll.pack(side="right", fill="y")
+        self.store_result_text.pack(side="left", fill="y")
+        self._add_copy_context_menu(self.store_result_text)
+
+        # --- 現時点の必要最小の高さを測って固定し、以後どんなにドラッグ・リサイズしても変わらないようにする ---
+        self.update_idletasks()
+        bottom_fixed_area.configure(height=bottom_fixed_area.winfo_reqheight())
+        bottom_fixed_area.pack_propagate(False)
 
         # --- ②の上にHUG側の画面場所を示すヒント行(他より1段階大きいフォント) ---
         default_font = tkfont.nametofont("TkDefaultFont")
@@ -491,52 +645,117 @@ class App(BaseTk):
 
         range_row = ttk.Frame(frame_cal)
         range_row.pack(fill="x", padx=10, pady=(6, 0))
-        tk.Label(range_row, text="対象日付範囲:").pack(side="left")
-        self.range_var = tk.StringVar(value="first_third")
-        ttk.Radiobutton(
-            range_row, text="1日〜15日", variable=self.range_var, value="first_third"
-        ).pack(side="left", padx=(6, 0))
-        ttk.Radiobutton(
-            range_row, text="16日〜25日", variable=self.range_var, value="second_third"
-        ).pack(side="left", padx=(10, 0))
-        ttk.Radiobutton(
-            range_row, text="26日〜月末", variable=self.range_var, value="third_third"
-        ).pack(side="left", padx=(10, 0))
+        range_font = tkfont.Font(
+            family=default_font.cget("family"), size=default_font.cget("size") + 4, weight="bold"
+        )
+        range_font_selected = tkfont.Font(
+            family=default_font.cget("family"), size=default_font.cget("size") + 6, weight="bold"
+        )
+        range_style = ttk.Style()
+        range_style.configure("Range.TRadiobutton", font=range_font, foreground="#000000")
+        range_style.configure("RangeSelected.TRadiobutton", font=range_font_selected, foreground="#c62828")
+        tk.Label(range_row, text="対象日付範囲:", font=range_font).pack(side="left")
+        valid_ranges = ("first_third", "second_third", "third_third")
+        saved_range = self.settings.get("range")
+        self.range_var = tk.StringVar(value=saved_range if saved_range in valid_ranges else "first_third")
+        self.range_radios = {}
+        for text, value, padx in (
+            ("1日〜15日", "first_third", (6, 0)),
+            ("16日〜25日", "second_third", (10, 0)),
+            ("26日〜月末", "third_third", (10, 0)),
+        ):
+            radio = ttk.Radiobutton(
+                range_row,
+                text=text,
+                variable=self.range_var,
+                value=value,
+                style="Range.TRadiobutton",
+            )
+            radio.pack(side="left", padx=padx)
+            self.range_radios[value] = radio
 
-        self.cal_text = tk.Text(frame_cal, height=13, wrap="none")
-        self.cal_text.pack(fill="both", expand=True, padx=10, pady=10)
+        def _update_range_emphasis(*_args):
+            selected = self.range_var.get()
+            for value, radio in self.range_radios.items():
+                radio.configure(
+                    style="RangeSelected.TRadiobutton" if value == selected else "Range.TRadiobutton"
+                )
+            self._save_settings()
+
+        self.range_var.trace_add("write", _update_range_emphasis)
+        _update_range_emphasis()
+
+        cal_text_frame = ttk.Frame(frame_cal)
+        cal_text_frame.pack(fill="x", padx=10, pady=10)
+        self.cal_text = tk.Text(cal_text_frame, height=2, wrap="none")
+        cal_scroll = ttk.Scrollbar(cal_text_frame, orient="vertical", command=self.cal_text.yview)
+        self.cal_text.config(yscrollcommand=cal_scroll.set)
+        cal_scroll.pack(side="right", fill="y")
+        self.cal_text.pack(side="left", fill="both", expand=True)
         self._add_edit_context_menu(self.cal_text)
+        self.cal_text.bind("<<Paste>>", self._on_cal_text_paste)
 
-        # --- 結果表示エリア(左右にドラッグで幅調整、上下(本エリアの高さ)もドラッグで調整可能) ---
+        # --- 結果表示エリア(左右にドラッグで幅調整、下端のつまみで左右2つの高さを同時に調整可能) ---
         frame_result = ttk.LabelFrame(bottom_frame, text="結果")
         frame_result.pack(fill="both", expand=True, **pad)
 
         paned = tk.PanedWindow(frame_result, orient="horizontal", sashrelief="raised", sashwidth=6)
         paned.pack(fill="both", expand=True, padx=10, pady=(10, 4))
 
-        left_frame = ttk.Frame(paned)
-        ttk.Label(left_frame, text="不一致・日付誤記の疑い").pack(anchor="w")
-        left_text_frame = ttk.Frame(left_frame)
-        left_text_frame.pack(fill="both", expand=True)
-        self.result_text = tk.Text(left_text_frame, height=14, wrap="word", state="disabled")
-        left_scroll = ttk.Scrollbar(left_text_frame, orient="vertical", command=self.result_text.yview)
-        self.result_text.config(yscrollcommand=left_scroll.set)
-        left_scroll.pack(side="right", fill="y")
-        self.result_text.pack(side="left", fill="both", expand=True)
-        self._add_copy_context_menu(self.result_text)
+        left_frame, self.result_text = self._make_result_box(paned, "不一致・日付誤記の疑い")
         paned.add(left_frame, stretch="always")
 
-        right_frame = ttk.Frame(paned)
-        ttk.Label(right_frame, text="一致しているが〇の行に空欄がある").pack(anchor="w")
-        right_text_frame = ttk.Frame(right_frame)
-        right_text_frame.pack(fill="both", expand=True)
-        self.blank_text = tk.Text(right_text_frame, height=14, wrap="word", state="disabled")
-        right_scroll = ttk.Scrollbar(right_text_frame, orient="vertical", command=self.blank_text.yview)
-        self.blank_text.config(yscrollcommand=right_scroll.set)
-        right_scroll.pack(side="right", fill="y")
-        self.blank_text.pack(side="left", fill="both", expand=True)
-        self._add_copy_context_menu(self.blank_text)
+        right_frame, self.blank_text = self._make_result_box(paned, "一致しているが〇の行に空欄がある")
         paned.add(right_frame, stretch="always")
+
+        # --- 下端のつまみをドラッグすると、左右2つの結果欄の高さが同時に変わる ---
+        grip = tk.Frame(frame_result, height=6, bg="#cfcfcf", cursor="sb_v_double_arrow")
+        grip.pack(side="bottom", fill="x", padx=10, pady=(0, 4), before=paned)
+        drag_state = {"y0": 0, "height0": 0}
+
+        def on_press(event):
+            drag_state["y0"] = event.y_root
+            drag_state["height0"] = int(self.result_text.cget("height"))
+
+        def on_drag(event):
+            info = self.result_text.dlineinfo("1.0")
+            line_h = info[3] if info else 16
+            delta_lines = int(round((event.y_root - drag_state["y0"]) / line_h))
+            new_height = max(4, drag_state["height0"] + delta_lines)
+            if new_height != int(self.result_text.cget("height")):
+                self.result_text.config(height=new_height)
+                self.blank_text.config(height=new_height)
+
+        def on_release(_event):
+            self._save_settings()
+
+        grip.bind("<Button-1>", on_press)
+        grip.bind("<B1-Motion>", on_drag)
+        grip.bind("<ButtonRelease-1>", on_release)
+
+    # --- 結果欄のテキスト枠を1つ作成する ---
+    def _make_result_box(self, parent, title):
+        frame = ttk.Frame(parent)
+        ttk.Label(frame, text=title).pack(anchor="w")
+
+        text_frame = ttk.Frame(frame)
+        text_frame.pack(fill="x")
+        initial_height = self.settings.get("result_height", 14)
+        text_widget = tk.Text(text_frame, height=initial_height, wrap="word", state="disabled")
+        scroll = ttk.Scrollbar(text_frame, orient="vertical", command=text_widget.yview)
+        text_widget.config(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        text_widget.pack(side="left", fill="both", expand=True)
+        self._add_copy_context_menu(text_widget)
+
+        return frame, text_widget
+
+    # --- 対象日付範囲の選択・結果欄の高さを次回起動時のデフォルトとして保存する ---
+    def _save_settings(self):
+        self.settings["range"] = self.range_var.get()
+        if hasattr(self, "result_text"):
+            self.settings["result_height"] = int(self.result_text.cget("height"))
+        save_settings(self.settings)
 
     # ---------- 右クリックでコピーできるようにする ----------
 
@@ -720,6 +939,46 @@ class App(BaseTk):
         except OSError as e:
             messagebox.showerror("開けませんでした", f"{href}\n{e}")
 
+    # ---------- 施設検索 ----------
+
+    def _refresh_store_status(self):
+        if self.store_data.error:
+            self.store_status_var.set(self.store_data.error)
+        else:
+            self.store_status_var.set("{}件読み込み済み".format(len(self.store_data.rows)))
+
+    def _reload_store_data(self):
+        self.store_data.reload()
+        self._refresh_store_status()
+        self._on_store_search(None)
+
+    def _on_store_search(self, event):
+        keyword = self.store_entry.get().strip()
+        self.store_result_text.config(state="normal")
+        self.store_result_text.delete("1.0", "end")
+        if self.store_data.error:
+            pass
+        elif keyword:
+            results = self.store_data.search(keyword)
+            if results:
+                lines = ["{}  →  {}".format(name, area) for name, area in results[:200]]
+                self.store_result_text.insert("end", "\n".join(lines))
+            else:
+                self.store_result_text.insert("end", "該当なし")
+        self.store_result_text.config(state="disabled")
+
+    def _on_cal_text_paste(self, event):
+        # <<Paste>>はテキスト挿入前に発火することがあるため、挿入完了後に処理する
+        self.after(10, self._auto_fill_store_from_cal_text)
+
+    def _auto_fill_store_from_cal_text(self):
+        text = self.cal_text.get("1.0", "end")
+        facility = extract_facility_name(text)
+        if facility:
+            self.store_entry.delete(0, "end")
+            self.store_entry.insert(0, facility)
+            self._on_store_search(None)
+
     # ---------- イベント ----------
 
     def _on_pdf_drop(self, event):
@@ -730,6 +989,12 @@ class App(BaseTk):
         path = filedialog.askopenfilename(title="日報PDF(欠席時対応記録票)を開く", filetypes=[("PDFファイル", "*.pdf")])
         if path:
             self._set_pdf(path)
+
+    def _open_pdf(self):
+        if not self.pdf_path:
+            messagebox.showerror("エラー", "先にPDFを選択してください。")
+            return
+        os.startfile(self.pdf_path)
 
     def _set_pdf(self, path):
         if not path.lower().endswith(".pdf"):
@@ -961,6 +1226,13 @@ class App(BaseTk):
         self.blank_text.config(state="disabled")
 
 if __name__ == "__main__":
+    if sys.platform == "win32":
+        import ctypes
+
+        console_window = ctypes.windll.kernel32.GetConsoleWindow()
+        if console_window:
+            ctypes.windll.user32.ShowWindow(console_window, 6)  # SW_MINIMIZE
+
     if not DND_AVAILABLE:
         print("※ tkinterdnd2が見つからないため、ドラッグ&ドロップは使えません。")
         print("  pip install tkinterdnd2 を実行すると有効になります。")
